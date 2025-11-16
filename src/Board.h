@@ -3,6 +3,8 @@
 
 #define MAX_BOARD_SIZE 64
 #define MAX_HEIGHT 128
+#define MAX_ELEMENTS 128 // Placeholder value
+#define MAX_POSITIONS 128 // Placeholder value
 
 // Board Structure declaration
 typedef struct {
@@ -19,10 +21,10 @@ typedef struct {
     int last_num;
 } Board;
 
-void InitBoard(Board B);
+void InitBoard(Board* B);
 Board InitDeviceBoard(const Board B);
-void CopyToDeviceBoard(Board Bdevice, const Board Bhost);
-void CopyFromDeviceBoard(Board Bhost, const Board Bdevice);
+void CopyToDeviceBoard(Board* Bdevice, const Board* Bhost);
+void CopyFromDeviceBoard(Board* Bhost, const Board* Bdevice);
 void FreeDeviceBoard(Board* BM);
 void FreeBoard(Board* B);
 
