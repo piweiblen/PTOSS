@@ -7,21 +7,21 @@
 typedef struct {
     int ones_num;  // total number of ones available to the grid
     int ones_left;  // number of ones available to place in the grid
+    int last_num;  // highest number currently placed in the grid
     // x and y postions of elements in our theoretical grid
     // we also store the ones at the end of these arrays
-    int* pos_x;
-    int* pos_y;
-    int* info;  // how many ones were placed alongside
-    int last_num;  // highest number currently placed in the grid
+    int pos_x[MAX_HEIGHT];
+    int pos_y[MAX_HEIGHT];
+    int info[MAX_HEIGHT];  // how many ones were placed alongside
+                           // TODO: it may be worth eliminating the 3 arrays and "packing" them into a single array
+                           // it'll make some of the code messier but save a lot of GPU memory
+                           // and we definitely don't need more than, say, 6 bits for info, and 13 each for x_pos and y_pos
 } Board;
 
 void InitBoard(Board* B, int N);
-Board InitDeviceBoard(const Board B);
 void CopyHostBoard(Board* Bdest, const Board* Bsrc);
-void CopyToDeviceBoard(Board* Bdevice, const Board* Bhost);
-void CopyFromDeviceBoard(Board* Bhost, const Board* Bdevice);
-void FreeDeviceBoard(Board* BM);
-void FreeBoard(Board* B);
+void flatten_board_list(int* flat_boards, Board* Boards, int num);
+void unflatten_board_list(Board* Boards, int* flat_boards, int num);
 void pretty_print(Board* B);
 void insert_element(Board* B, int x, int y, int ones_added);
 void insert_one(Board* B, int x, int y);

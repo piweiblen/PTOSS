@@ -38,9 +38,7 @@ int main(int argc, char** argv) {
         }
         printf("final board:\n");
         pretty_print(&max_board);
-        printf("checked %d unique states:\n", count);
-        FreeBoard(&search_board);
-        FreeBoard(&max_board);
+        printf("checked %d unique states\n", count);
 
     } else if (argc == 2) {
         // For one arg we'll compute only the specified term
@@ -56,6 +54,6 @@ void computeTerm(int n) {
     // and branch breadth first until a sufficient number of boards has been generated
     // (number of GPU threads we wish to run, probably #defined in PTOSS_kernel)
     // call SearchOnDevice with this list of boards
-    // pretty print result and at least on example grid
+    // pretty print result and at least one example grid
     // for fun we could eventually save all maximizing grids to a file
 }

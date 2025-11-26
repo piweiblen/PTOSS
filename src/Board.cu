@@ -19,28 +19,6 @@ void InitBoard(Board* B, int N) {
     B->ones_num = N;
     B->ones_left = N;
     B->last_num = 0;  // maybe rename this var. this is the next available index in our pos arrays
-
-    // Allocate element and position arrays
-    B->pos_x = (int*) malloc(MAX_HEIGHT * sizeof(int));
-    B->pos_y = (int*) malloc(MAX_HEIGHT * sizeof(int));
-    B->info = (int*) malloc(MAX_HEIGHT * sizeof(int));
-}
-
-// Create and populate a device board with identical values ot input board
-Board InitDeviceBoard(const Board Bhost) {
-
-    Board Bdevice;
-
-    // Allocate the element and position arrays on the device
-    cudaMalloc(&Bdevice.pos_x, MAX_HEIGHT * sizeof(int));
-    cudaMalloc(&Bdevice.pos_y, MAX_HEIGHT * sizeof(int));
-    cudaMalloc(&Bdevice.info, MAX_HEIGHT * sizeof(int));
-
-    // Copy positions arrays
-    CopyToDeviceBoard(&Bdevice, &Bhost);
-
-    // Return the board
-    return Bdevice;
 }
 
 // Copy a host board to a host board
@@ -57,50 +35,50 @@ void CopyHostBoard(Board* Bdest, const Board* Bsrc) {
     memcpy(Bdest->info, Bsrc->info, MAX_HEIGHT * sizeof(int));
 }
 
-// Copy a host board to a device board
-void CopyToDeviceBoard(Board* Bdevice, const Board* Bhost) {
+void flatten_board_list(int* flat_boards, Board* Boards, int num) {
 
-    // Copy scalar values
-    Bdevice->ones_num = Bhost->ones_num;
-    Bdevice->ones_left = Bhost->ones_left;
-    Bdevice->last_num = Bhost->last_num;
-
-    // Copy position arrays
-    cudaMemcpy(Bdevice->pos_x, Bhost->pos_x, MAX_HEIGHT * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(Bdevice->pos_y, Bhost->pos_y, MAX_HEIGHT * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(Bdevice->info, Bhost->info, MAX_HEIGHT * sizeof(int), cudaMemcpyHostToDevice);
+    // put list of boards into a flat 1D array of ints
+    int elem_idx;
+    for (int b=0; b<num; b++) {
+        elem_idx = 0;
+        for (int i=0; i<MAX_HEIGHT; i++) {
+            flat_boards[elem_idx * num + b] = Boards[b].pos_x[i];
+            elem_idx++;
+            flat_boards[elem_idx * num + b] = Boards[b].pos_y[i];
+            elem_idx++;
+            flat_boards[elem_idx * num + b] = Boards[b].info[i];
+            elem_idx++;
+        }
+        flat_boards[elem_idx * num + b] = Boards[b].ones_num;
+        elem_idx++;
+        flat_boards[elem_idx * num + b] = Boards[b].ones_left;
+        elem_idx++;
+        flat_boards[elem_idx * num + b] = Boards[b].last_num;
+        elem_idx++;
+    }
 }
 
-// Copy a device board to a host board
-void CopyFromDeviceBoard(Board* Bhost, const Board* Bdevice) {
+void unflatten_board_list(Board* Boards, int* flat_boards, int num) {
 
-    // Copy scalar values
-    Bhost->ones_num = Bdevice->ones_num;
-    Bhost->ones_left = Bdevice->ones_left;
-    Bhost->last_num = Bdevice->last_num;
-
-    // Copy position arrays
-    cudaMemcpy(Bhost->pos_x, Bdevice->pos_x, MAX_HEIGHT * sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(Bhost->pos_y, Bdevice->pos_y, MAX_HEIGHT * sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(Bhost->info, Bdevice->info, MAX_HEIGHT * sizeof(int), cudaMemcpyDeviceToHost);
-}
-
-// Free a device board
-void FreeDeviceBoard(Board* B) {
-
-    // Free arrays
-    cudaFree(B->pos_x);
-    cudaFree(B->pos_y);
-    cudaFree(B->info);
-}
-
-// Free a host board
-void FreeBoard(Board* B) {
-
-    // Free arrays
-    free(B->pos_x);
-    free(B->pos_y);
-    free(B->info);
+    // put list of boards into a flat 1D array of ints
+    int elem_idx;
+    for (int b=0; b<num; b++) {
+        elem_idx = 0;
+        for (int i=0; i<MAX_HEIGHT; i++) {
+            Boards[b].pos_x[i] = flat_boards[elem_idx * num + b];
+            elem_idx++;
+            Boards[b].pos_y[i] = flat_boards[elem_idx * num + b];
+            elem_idx++;
+            Boards[b].info[i] = flat_boards[elem_idx * num + b];
+            elem_idx++;
+        }
+        Boards[b].ones_num = flat_boards[elem_idx * num + b];
+        elem_idx++;
+        Boards[b].ones_left = flat_boards[elem_idx * num + b];
+        elem_idx++;
+        Boards[b].last_num = flat_boards[elem_idx * num + b];
+        elem_idx++;
+    }
 }
 
 void pretty_print(Board* B) {
