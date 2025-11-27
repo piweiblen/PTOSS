@@ -144,7 +144,7 @@ __device__ int get_sum(int* b_arr, int b_idx, int num_b, int x, int y, int* leas
     return sum;
 }
 
-__device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int start_H) {
+__device__ int look_around(int* b_arr, int b_idx, int num_b, int index, int start_H) {
 
     // check around the location of a particular index for a spot to place the next element
     int new_x, new_y;
@@ -158,11 +158,11 @@ __device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int sta
         if (get_sum(b_arr, b_idx, num_b, new_x, new_y, &min_nb) == last_num+2) {
             if (min_nb == index) {  // don't go in spots we've already checked
                 insert_element(b_arr, b_idx, num_b, new_x, new_y, 0);
-                return true;
+                return 1;
             }
         }
     }
-    return false;
+    return 0;
 }
 
 __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
@@ -175,14 +175,14 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
     int ones_num = get_ones_num(b_arr, b_idx, num_b);
     // first try to add the next number
     for (int i=0; i<last_num / 2; i++) {  // choose a num (i+2) to try to place around
-        if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+        if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
     }
     for (int i=last_num - ones_num; i<last_num; i++) {  // we need to also look around high numbers
-        if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+        if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
     }
     if (last_num+2 <= 8) { // we need to also look around ones for small numbers
         for (int i=MAX_HEIGHT-ones_num; i<MAX_HEIGHT-ones_left; i++) { 
-            if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+            if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
         }
     }
 
@@ -201,16 +201,16 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
         last_num = get_last_num(b_arr, b_idx, num_b);
         ones_left = get_ones_left(b_arr, b_idx, num_b);
         // start with element it was already around
-        if (look_around(b_arr, b_idx, num_b, old_nb, last_H+1)) return;
+        if (look_around(b_arr, b_idx, num_b, old_nb, last_H+1) == 1) return;
         for (int i=old_nb+1; i<last_num / 2; i++) {  // choose a num (i+2) to try to place around
-            if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+            if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
         }
         for (int i=MAX(old_nb+1, last_num - ones_num); i<last_num; i++) {  // we need to also look around high numbers
-            if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+            if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
         }
         if (last_num+2 <= 8) { // we need to also look around ones for small numbers
             for (int i=MAX(old_nb+1, MAX_HEIGHT-ones_num); i<MAX_HEIGHT-ones_left; i++) { 
-                if (look_around(b_arr, b_idx, num_b, i, 0)) return;
+                if (look_around(b_arr, b_idx, num_b, i, 0) == 1) return;
             }
         }
     }
@@ -224,17 +224,17 @@ __global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b
     //TODO assign each thread one board to completely search the state space of
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {
-        int anchor_x = get_pos_x(b_arr, b_idx, num_b, get_last_num(b_arr, b_idx, num_b) - 1);
-        int anchor_y = get_pos_y(b_arr, b_idx, num_b, get_last_num(b_arr, b_idx, num_b) - 1);
-        atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
+        int anchor_idx = get_last_num(b_arr, b_idx, num_b) - 1;
+        int anchor_x = get_pos_x(b_arr, b_idx, num_b, anchor_idx);
+        int anchor_y = get_pos_y(b_arr, b_idx, num_b, anchor_idx);
         while (true) {
             next_board_state(b_arr, b_idx, num_b);
-            // if (*cur_max < get_last_num(b_arr, b_idx, num_b)) {
-            //     atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
-            //     copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO make atomic??
-            // }
-            if ((anchor_x != get_pos_x(b_arr, b_idx, num_b, get_last_num(b_arr, b_idx, num_b) - 1))
-             || (anchor_y != get_pos_y(b_arr, b_idx, num_b, get_last_num(b_arr, b_idx, num_b) - 1))) {
+            if (*cur_max < get_last_num(b_arr, b_idx, num_b)) {
+                atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
+                copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO make atomic??
+            }
+            if ((anchor_x != get_pos_x(b_arr, b_idx, num_b, anchor_idx))
+             || (anchor_y != get_pos_y(b_arr, b_idx, num_b, anchor_idx))) {
                 break;
             }
         }
@@ -247,8 +247,6 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     // do a bit of data marshalling
     int* Boards_host = (int*) malloc(num_b * sizeof(Board));
     flatten_board_list(Boards_host, Boards, num_b);
-    printf("host last num: %d\n", Boards_host[1 * num_b + 3]);
-    
 
     // set up device memory
     int* cur_max;
@@ -259,7 +257,6 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     int* Boards_device;
     cudaMalloc((void**) &Boards_device, num_b * sizeof(Board));
     cudaMemcpy(Boards_device, Boards_host, num_b * sizeof(Board), cudaMemcpyHostToDevice);
-	cudaDeviceSynchronize();
 
     // Setup the execution configuration
 	dim3 blockDim(BLOCK_SIZE, 1, 1);
@@ -268,11 +265,6 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     // Launch the device computation threads
 	SearchKernel<<<gridDim,blockDim>>>(Boards_device, max_board_device, cur_max, num_b);
 	cudaDeviceSynchronize();
-
-    int host_max;
-    cudaMemcpy(&host_max, cur_max, sizeof(int), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
-    printf("max found: %d\n", host_max);
 
     // copy results back to host
     int* max_board_host = (int*) malloc(sizeof(Board));

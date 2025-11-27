@@ -77,12 +77,12 @@ int main(int argc, char** argv) {
 
         SearchOnDevice(search_boards, &max_board, 6);
 
-        // printf("search boards:\n");
-        // for (int i=0; i<6; i++) {
-        //     pretty_print(&search_boards[i]);
-        // }
-        // printf("final board:\n");
-        // pretty_print(&max_board);
+        printf("search boards:\n");
+        for (int i=0; i<6; i++) {
+            pretty_print(&search_boards[i]);
+        }
+        printf("final board:\n");
+        pretty_print(&max_board);
     }
 }
 
