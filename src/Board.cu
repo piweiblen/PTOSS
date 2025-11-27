@@ -233,9 +233,8 @@ void next_board_state(Board* B) {
         last_H = AR_IDX(old_x - B->pos_x[old_nb], old_y - B->pos_y[old_nb]);
         // remove the element and search for new spot
         remove_element(B);
-        // TODO dry out this WET code
         // start with element it was already around
-        look_around(B, old_nb, last_H+1);
+        if (look_around(B, old_nb, last_H+1)) return;
         for (int i=old_nb+1; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
             if (look_around(B, i, 0)) return;
         }

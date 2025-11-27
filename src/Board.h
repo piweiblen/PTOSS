@@ -1,7 +1,7 @@
 #ifndef _BOARD_
 #define _BOARD_
 
-#define MAX_HEIGHT 128  // Placeholder value, may want to make this dynamic based on N later
+#define MAX_HEIGHT 128
 
 // Board Structure declaration
 typedef struct {
