@@ -41,6 +41,12 @@ void flatten_board_list(int* flat_boards, Board* Boards, int num) {
     int elem_idx;
     for (int b=0; b<num; b++) {
         elem_idx = 0;
+        flat_boards[elem_idx * num + b] = Boards[b].ones_num;
+        elem_idx++;
+        flat_boards[elem_idx * num + b] = Boards[b].ones_left;
+        elem_idx++;
+        flat_boards[elem_idx * num + b] = Boards[b].last_num;
+        elem_idx++;
         for (int i=0; i<MAX_HEIGHT; i++) {
             flat_boards[elem_idx * num + b] = Boards[b].pos_x[i];
             elem_idx++;
@@ -49,12 +55,6 @@ void flatten_board_list(int* flat_boards, Board* Boards, int num) {
             flat_boards[elem_idx * num + b] = Boards[b].info[i];
             elem_idx++;
         }
-        flat_boards[elem_idx * num + b] = Boards[b].ones_num;
-        elem_idx++;
-        flat_boards[elem_idx * num + b] = Boards[b].ones_left;
-        elem_idx++;
-        flat_boards[elem_idx * num + b] = Boards[b].last_num;
-        elem_idx++;
     }
 }
 
@@ -64,6 +64,12 @@ void unflatten_board_list(Board* Boards, int* flat_boards, int num) {
     int elem_idx;
     for (int b=0; b<num; b++) {
         elem_idx = 0;
+        Boards[b].ones_num = flat_boards[elem_idx * num + b];
+        elem_idx++;
+        Boards[b].ones_left = flat_boards[elem_idx * num + b];
+        elem_idx++;
+        Boards[b].last_num = flat_boards[elem_idx * num + b];
+        elem_idx++;
         for (int i=0; i<MAX_HEIGHT; i++) {
             Boards[b].pos_x[i] = flat_boards[elem_idx * num + b];
             elem_idx++;
@@ -72,12 +78,6 @@ void unflatten_board_list(Board* Boards, int* flat_boards, int num) {
             Boards[b].info[i] = flat_boards[elem_idx * num + b];
             elem_idx++;
         }
-        Boards[b].ones_num = flat_boards[elem_idx * num + b];
-        elem_idx++;
-        Boards[b].ones_left = flat_boards[elem_idx * num + b];
-        elem_idx++;
-        Boards[b].last_num = flat_boards[elem_idx * num + b];
-        elem_idx++;
     }
 }
 
