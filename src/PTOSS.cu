@@ -9,8 +9,7 @@
 
 int main(int argc, char** argv) {
     if (argc == 1) {
-        // For no args we'll start with n=1 and compute as many terms as possible
-        //TODO a while loop, I imagine
+        // TODO For no args we'll start with n=1 and compute as many terms as possible
         
 
         // for now let's just do a crude search of N=2 for testing purposes
@@ -41,9 +40,49 @@ int main(int argc, char** argv) {
         printf("checked %d unique states\n", count);
 
     } else if (argc == 2) {
-        // For one arg we'll compute only the specified term
-        int n = atoi(argv[1]);
-        printf("%d -> ?????\n", n);
+        // TODO For one arg we'll compute only the specified term
+
+
+        // for now we'll ignor the arg and do a crude search of N=2 on the GPU for testing purposes
+        Board search_boards[6];
+        Board max_board;
+        // prep boards for searching
+        for (int i=0; i<6; i++) {
+            InitBoard(&search_boards[i], 2);
+            insert_element(&search_boards[i], 0, 0, 2);
+        }
+        insert_one(&search_boards[0], -1, -1);
+        insert_one(&search_boards[0], 1, 1);
+        insert_element(&search_boards[0], -1, 0, 0);
+
+        insert_one(&search_boards[1], -1, -1);
+        insert_one(&search_boards[1], 1, 0);
+        insert_element(&search_boards[1], -1, 0, 0);
+
+        insert_one(&search_boards[2], -1, -1);
+        insert_one(&search_boards[2], 1, -1);
+        insert_element(&search_boards[2], -1, 0, 0);
+
+        insert_one(&search_boards[3], 0, -1);
+        insert_one(&search_boards[3], 1, 1);
+        insert_element(&search_boards[3], -1, -1, 0);
+
+        insert_one(&search_boards[4], 0, -1);
+        insert_one(&search_boards[4], 1, 0);
+        insert_element(&search_boards[4], -1, -1, 0);
+
+        insert_one(&search_boards[5], 0, -1);
+        insert_one(&search_boards[5], 1, -1);
+        insert_element(&search_boards[5], -1, -1, 0);
+
+        SearchOnDevice(search_boards, &max_board, 6);
+
+        // printf("search boards:\n");
+        // for (int i=0; i<6; i++) {
+        //     pretty_print(&search_boards[i]);
+        // }
+        // printf("final board:\n");
+        // pretty_print(&max_board);
     }
 }
 
