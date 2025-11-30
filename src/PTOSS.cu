@@ -2,25 +2,25 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 #include "Board.h"
 #include "PTOSS_kernel.h"
 
 
 int main(int argc, char** argv) {
+    int N=4;
     if (argc == 1) {
         // TODO For no args we'll start with n=1 and compute as many terms as possible
         
 
         // for now let's just do an incomplete search for testing purposes
-        int N=4;
         Board search_board;
         int max_found = -1;
         Board max_board;
         unsigned int count = 0;
         // prep board for searching
         InitBoard(&search_board, N);
-        InitBoard(&max_board, N);
         insert_element(&search_board, 0, 0, 2);
         insert_one(&search_board, -1, -1);
         insert_one(&search_board, 1, 1);
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
         Board max_board;
         // prep boards for searching
         for (int i=0; i<6; i++) {
-            InitBoard(&search_boards[i], 2);
+            InitBoard(&search_boards[i], N);
             insert_element(&search_boards[i], 0, 0, 2);
         }
         insert_one(&search_boards[0], -1, -1);
@@ -83,13 +83,17 @@ int main(int argc, char** argv) {
         insert_one(&search_boards[5], 1, -1);
         insert_element(&search_boards[5], -1, -1, 0);
 
-        SearchOnDevice(search_boards, &max_board, 6);
-
         printf("search boards:\n");
         for (int i=0; i<6; i++) {
             pretty_print(&search_boards[i]);
         }
-        printf("final board:\n");
+
+        clock_t tic = clock();
+        SearchOnDevice(search_boards, &max_board, 6);
+        clock_t toc = clock();
+        printf("GPU time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+
+        printf("final board (%d):\n", max_board.last_num+1);
         pretty_print(&max_board);
     }
 }
