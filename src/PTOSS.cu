@@ -12,14 +12,15 @@ int main(int argc, char** argv) {
         // TODO For no args we'll start with n=1 and compute as many terms as possible
         
 
-        // for now let's just do a crude search of N=2 for testing purposes
+        // for now let's just do an incomplete search for testing purposes
+        int N=4;
         Board search_board;
         int max_found = -1;
         Board max_board;
-        int count = 0;
+        unsigned int count = 0;
         // prep board for searching
-        InitBoard(&search_board, 2);
-        InitBoard(&max_board, 2);
+        InitBoard(&search_board, N);
+        InitBoard(&max_board, N);
         insert_element(&search_board, 0, 0, 2);
         insert_one(&search_board, -1, -1);
         insert_one(&search_board, 1, 1);
@@ -28,14 +29,21 @@ int main(int argc, char** argv) {
         pretty_print(&search_board);
         while ((search_board.pos_x[1] == -1) && (search_board.pos_y[1] == 0)) {
             next_board_state(&search_board);
-            // pretty_print(&search_board);
+            // if (count%100000 == 0) pretty_print(&search_board);
+            // if (search_board.last_num+1 == 7) {
+            //     printf("board index %d:\n", count);
+            //     printf("last num %d:\n", search_board.last_num+1);
+            //     printf("last info %d:\n", search_board.info[search_board.last_num-1]);
+            //     pretty_print(&search_board);
+            // }
             if (max_found < search_board.last_num) {
                 max_found = search_board.last_num;
                 CopyHostBoard(&max_board, &search_board);
             }
             count += 1;
+            // if (count > 1300000) break;
         }
-        printf("final board:\n");
+        printf("final board (%d):\n", max_board.last_num+1);
         pretty_print(&max_board);
         printf("checked %d unique states\n", count);
 
