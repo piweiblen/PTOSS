@@ -1,3 +1,4 @@
+/work/*
 /src/*.o
 /src/PTOSS
 *.bat
