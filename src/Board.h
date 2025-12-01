@@ -1,6 +1,8 @@
 #ifndef _BOARD_
 #define _BOARD_
 
+#include <stdint.h>
+
 #define MAX_HEIGHT 128
 
 // Board Structure declaration
@@ -16,6 +18,7 @@ typedef struct {
                            // TODO: it may be worth eliminating the 3 arrays and "packing" them into a single array
                            // it'll make some of the code messier but save a lot of GPU memory
                            // and we definitely don't need more than, say, 6 bits for info, and 13 each for x_pos and y_pos
+                           // Packing and unpacking functions have been added, but code hasn't been updated accordingly yet
 } Board;
 
 void InitBoard(Board* B, int N);
@@ -28,5 +31,13 @@ void insert_one(Board* B, int x, int y);
 void remove_element(Board* B);
 void remove_one(Board* B, int x, int y);
 void next_board_state(Board* B);
+uint32_t pack_ints(int pos_x, int pos_y, int info);
+uint32_t pack_pos_x(uint32_t packed_int, int pos_x);
+uint32_t pack_pos_y(uint32_t packed_int, int pos_y);
+uint32_t pack_info(uint32_t packed_int, int info);
+uint32_t* pack_arrays(uint32_t packed_array, int* pos_x, int* pos_y, int* info);
+int unpack_pos_x(uint32_t packed_int);
+int unpack_pos_y(uint32_t packed_int);
+int unpack_info(uint32_t packed_int);
 
 #endif // _BOARD_

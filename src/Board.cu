@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,7 +21,7 @@ const int P_wieght[256] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 // Populate a board with initial values and allocate needed memory
 void InitBoard(Board* B, int N) {
 
-    // Define initial values (all set to 0 as placeholders)
+    // Define initial values
     B->ones_num = N;
     B->ones_left = N;
     B->last_num = 0;  // maybe rename this var. this is the next available index in our pos arrays
@@ -88,7 +89,7 @@ void unflatten_board_list(Board* Boards, int* flat_boards, int num) {
 
 void pretty_print(Board* B) {
 
-    // TODO output our board in a nice grid format
+    // TODO: output our board in a nice grid format
     int width = floor(log10(MAX(1, abs(B->last_num+1)))) + 2;
     int min_x = 0;
     int max_x = 0;
@@ -170,7 +171,7 @@ void remove_element(Board* B, int* one_positions) {
     B->last_num -= 1;
 }
 
-int get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) {  //TODO lots of wasted time here, in the end we'll want to stop when we know (sum > target)
+int get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) {  //TODO: lots of wasted time here, in the end we'll want to stop when we know (sum > target)
 
     // get the sum of elements surrounding position
     // returns -1 if position already populated
@@ -280,3 +281,58 @@ void next_board_state(Board* B) {
         }
     }
 }
+
+// Pack a pos_x, pos_y, and info int into a single uint32_t
+uint32_t pack_ints(int pos_x, int pos_y, int info) {
+    return ((uint32_t) pos_x & 0x1FFF) // Pack pos_x into bits 0-12
+            | (((uint32_t) pos_y & 0x1FFF) << 13) // Pack pos_y into bits 13-25
+            | ((((uint32_t) info & 0x3F) << 26)); // Pack info into bits 26-31
+}
+
+// Pack pos_x in packed int (without changing pos_y or info)
+uint32_t pack_pos_x(uint32_t packed_int, int pos_x) {
+    packed_int &= ~0x1FFF; // Clear old pos_x
+    packed_int |= (uint32_t) pos_x & 0x1FFF; // Add new pos_x
+    return packed_int;
+}
+
+// Pack pos_y in packed int (without changing pos_x or info)
+uint32_t pack_pos_y(uint32_t packed_int, int pos_y) {
+    packed_int &= ~(0x1FFF << 13); // Clear old pos_y
+    packed_int |= ((uint32_t) pos_y & 0x1FFF) << 13; // Add new pos_y
+    return packed_int;
+}
+
+// Pack info in packed int (without changing pos_x or pos_y)
+uint32_t pack_info(uint32_t packed_int, int info) {
+    packed_int &= ~(0x3F << 26); // Clear old info
+    packed_int |= ((uint32_t) info & 0x3F) << 26; // Add new info
+    return packed_int;
+}
+
+// Pack all three int arrays into one uint32_t array
+void pack_arrays(uint32_t* packed_array, int* pos_x, int* pos_y, int* info) {
+
+    // Loop and pack each corresponding 3 ints into packed_ints array
+    for (int i = 0; i < MAX_HEIGHT; i++) {
+        packed_array[i] = pack_ints(pos_x[i], pos_y[i], info[i]);
+    }
+
+}
+
+// Unpack pos_x int
+int unpack_pos_x(uint32_t packed_int) {
+    return packed_int & 0x1FFF;
+}
+
+// Unpack pos_y int
+int unpack_pos_y(uint32_t packed_int) {
+    return (packed_int >> 13) & 0x1FFF;
+}
+
+// Unpack info int
+int unpack_info(uint32_t packed_int) {
+    return (packed_int >> 26) & 0x3F;
+}
+
+void pos_x_add()
