@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -335,4 +336,6 @@ int unpack_info(uint32_t packed_int) {
     return (packed_int >> 26) & 0x3F;
 }
 
-void pos_x_add()
+void pos_x_add() {
+
+}

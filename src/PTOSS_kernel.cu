@@ -246,7 +246,7 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
 
 // Main kernel for parallel board search
 __global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b) {
-    //TODO assign each thread one board to completely search the state space of
+    //TODO: assign each thread one board to completely search the state space of
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {
         int anchor_idx = get_last_num(b_arr, b_idx, num_b) - 1;
@@ -256,7 +256,7 @@ __global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b
             next_board_state(b_arr, b_idx, num_b);
             if (*cur_max < get_last_num(b_arr, b_idx, num_b)) {
                 atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
-                copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO make atomic??
+                copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO: make atomic??
             }
             if ((anchor_x != get_pos_x(b_arr, b_idx, num_b, anchor_idx))
              || (anchor_y != get_pos_y(b_arr, b_idx, num_b, anchor_idx))) {
