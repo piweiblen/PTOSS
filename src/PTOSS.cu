@@ -11,7 +11,7 @@
 int main(int argc, char** argv) {
     int N=4;
     if (argc == 1) {
-        // TODO For no args we'll start with n=1 and compute as many terms as possible
+        // TODO: For no args we'll start with n=1 and compute as many terms as possible
         
 
         // for now let's just do an incomplete search for testing purposes
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         printf("checked %d unique states\n", count);
 
     } else if (argc == 2) {
-        // TODO For one arg we'll compute only the specified term
+        // TODO: For one arg we'll compute only the specified term
 
 
         // for now we'll ignor the arg and do a crude search of N=2 on the GPU for testing purposes
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
 }
 
 void computeTerm(int n) {
-    //TODO write
+    //TODO: write
     // we'll start with a predefined set of boards with 2 placed already
     // (we can hard code/ignore trivial n=1 case)
     // and branch breadth first until a sufficient number of boards has been generated
