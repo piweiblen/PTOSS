@@ -90,12 +90,12 @@ void unflatten_board_list(Board* Boards, int* flat_boards, int num) {
 
 void pretty_print(Board* B) {
 
-    // TODO: output our board in a nice grid format
+    // output our board in a nice grid format
     int width = floor(log10(MAX(1, abs(B->last_num+1)))) + 2;
-    int min_x = 0;
-    int max_x = 0;
-    int min_y = 0;
-    int max_y = 0;
+    int min_x = INT_MAX;
+    int max_x = INT_MIN;
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
     for (int i=0; i<B->last_num; i++) {
         min_x = MIN(min_x, B->pos_x[i]);
         max_x = MAX(max_x, B->pos_x[i]);
@@ -276,7 +276,7 @@ void next_board_state(Board* B) {
             if (look_around(B, i, 0, 0)) return;
         }
         if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-            for (int i=MAX(old_nb+1, MAX_HEIGHT-B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
+            for (int i=MAX(old_nb+1, MAX_HEIGHT - B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
                 if (look_around(B, i, 0, 0)) return;
             }
         }
