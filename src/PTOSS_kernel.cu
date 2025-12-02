@@ -164,7 +164,6 @@ __device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int sta
     // check around the location of a particular index for a spot to place the next element
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
-    bool set_P = (start_P==0);
     int last_num = get_last_num(b_arr, b_idx, num_b);
     int pos_x = get_pos_x(b_arr, b_idx, num_b, index);
     int pos_y = get_pos_y(b_arr, b_idx, num_b, index);
@@ -176,7 +175,7 @@ __device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int sta
             if (cur_sum <= last_num + 2) {
                 ones_needed = last_num + 2 - cur_sum;
                 if (ones_needed <= MIN(get_ones_left(b_arr, b_idx, num_b), P_wieght[P_idxs[open_nb]])) {
-                    for (int P=set_P?P_rngs[ones_needed]:start_P; P<P_rngs[ones_needed+1]; P++) {
+                    for (int P=MAX(start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
                         insert_element(b_arr, b_idx, num_b, new_x, new_y, ones_needed);
                         for (int b=0; b<8; b++) {
@@ -187,7 +186,7 @@ __device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int sta
                 }
             }
         }
-        set_P = true;
+        start_P = 0;
     }
     return false;
 }
@@ -217,7 +216,7 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
     // continuing to remove elements until we succeed at moving one
     int old_x, old_y;
     int old_nb, last_H, last_P;
-    while (true) {
+    while (last_num - 1) {  // abort if "3" is removed
         // first find where we left off
         old_x = get_pos_x(b_arr, b_idx, num_b, last_num - 1);
         old_y = get_pos_y(b_arr, b_idx, num_b, last_num - 1);
@@ -229,7 +228,7 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
         last_num = get_last_num(b_arr, b_idx, num_b);
         ones_left = get_ones_left(b_arr, b_idx, num_b);
         // start with element it was already around
-        if (look_around(b_arr, b_idx, num_b, old_nb, last_H, P_idxs[last_P]+1)) return;
+        if (look_around(b_arr, b_idx, num_b, old_nb, last_H, P_idxs[last_P] + 1)) return;
         for (int i=old_nb+1; i<last_num / 2; i++) {  // choose a num (i+2) to try to place around
             if (look_around(b_arr, b_idx, num_b, i, 0, 0)) return;
         }
@@ -256,7 +255,7 @@ __global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b
             next_board_state(b_arr, b_idx, num_b);
             if (*cur_max < get_last_num(b_arr, b_idx, num_b)) {
                 atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
-                copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO: make atomic??
+                copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO: make atomic!!
             }
             if ((anchor_x != get_pos_x(b_arr, b_idx, num_b, anchor_idx))
              || (anchor_y != get_pos_y(b_arr, b_idx, num_b, anchor_idx))) {

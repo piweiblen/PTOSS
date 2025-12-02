@@ -206,13 +206,12 @@ int get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) { 
     return sum;
 }
 
-bool look_around(Board* B, int index, int start_H, int start_P) {
+bool look_around(Board* B, int index, int* start_H, int* start_P) {
 
     // check around the location of a particular index for a spot to place the next element
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
-    bool set_P = (start_P==0);
-    for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
+    for (int H=*start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = B->pos_x[index] + x_around[H];
         new_y = B->pos_y[index] + y_around[H];
         cur_sum = get_sum(B, new_x, new_y, &min_nb, &open_nb);
@@ -220,20 +219,30 @@ bool look_around(Board* B, int index, int start_H, int start_P) {
             if (cur_sum <= B->last_num+2) {
                 ones_needed = B->last_num + 2 - cur_sum;
                 if (ones_needed <= MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) {
-                    for (int P=set_P?P_rngs[ones_needed]:start_P; P<P_rngs[ones_needed+1]; P++) {
+                    for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
                         insert_element(B, new_x, new_y, ones_needed);
                         for (int b=0; b<8; b++) {
                             if (P_bits[P] & (1<<b)) insert_one(B, new_x+x_around[b], new_y+y_around[b]);
                         }
+                        *start_H = H;
+                        *start_P = P;
                         return true;
                     }
                 }
             }
         }
-        set_P = true;
+        *start_P = 0;
     }
     return false;
+}
+
+bool look_around(Board* B, int index, int start_H, int start_P) {
+
+    // overload for when we don't care about capturing the start values
+    int idc_H = start_H;
+    int idc_P = start_P;
+    return look_around(B, index, &idc_H, &idc_P);
 }
 
 void next_board_state(Board* B) {
@@ -258,7 +267,7 @@ void next_board_state(Board* B) {
     // continuing to remove elements until we succeed at moving one
     int old_x, old_y;
     int old_nb, last_P, last_H;
-    while (true) {
+    while (B->last_num - 1) {  // abort if "3" is removed
         // first find where we left off
         old_x = B->pos_x[B->last_num - 1];
         old_y = B->pos_y[B->last_num - 1];
@@ -268,7 +277,7 @@ void next_board_state(Board* B) {
         // remove the element and search for new spot
         remove_element(B, &last_P);
         // start with element it was already around
-        if (look_around(B, old_nb, last_H, P_idxs[last_P]+1)) return;
+        if (look_around(B, old_nb, last_H, P_idxs[last_P] + 1)) return;
         for (int i=old_nb+1; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
             if (look_around(B, i, 0, 0)) return;
         }
@@ -281,6 +290,59 @@ void next_board_state(Board* B) {
             }
         }
     }
+}
+
+bool equivalent(Board* B1, Board* B2) {
+
+    // determine if two boards are equivalent up to reflection/rotation
+    // TODO write
+    return false;
+}
+
+void remove_duplicates(Board** boards, int* num_b) {
+    
+    // remove all duplicate boards from an array of boards
+    // TODO write
+}
+
+void gen_all_next_boards(Board** boards, int* num_b) {
+    
+    // given an array of boards generate all possible boards which can be made by adding an element
+    int new_num_b = 16;
+    Board* new_boards = (Board *) malloc(new_num_b * sizeof(Board));
+    int cur_idx = 0;
+    int start_H, start_P;
+    Board* B;
+    for (int i=0; i<*num_b; i++) {  // loop over all boards
+        B = (*boards) + i;
+        for (int j=0; j<MAX_HEIGHT-B->ones_left; j++) {  // loop over all possible anchors for the next number
+            // filter out impossible anchors
+            if ((j >= B->last_num / 2) && (j < B->last_num - B->ones_num)) continue;
+            if ((j >= B->last_num) && (j < MAX_HEIGHT-B->ones_num)) continue;
+            if ((B->last_num+2 > 8) && (j >= B->last_num)) continue;
+            start_H = 0;
+            start_P = 0;
+            while (true) {  // loop over all possible positions/one placements
+                // set up next board in the array
+                if (cur_idx >= new_num_b) {
+                    new_num_b *= 2;
+                    new_boards = (Board *) realloc(new_boards, new_num_b * sizeof(Board));
+                }
+                CopyHostBoard(&new_boards[cur_idx], B);
+
+                if (look_around(&new_boards[cur_idx], j, &start_H, &start_P)) {
+                    start_P++;
+                    cur_idx++;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    *boards = (Board *) realloc(*boards, cur_idx * sizeof(Board));
+    memcpy(*boards, new_boards, cur_idx * sizeof(Board));
+    free(new_boards);
+    *num_b = cur_idx;
 }
 
 // Pack a pos_x, pos_y, and info int into a single uint32_t

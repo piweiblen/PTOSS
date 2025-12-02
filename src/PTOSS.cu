@@ -8,103 +8,142 @@
 #include "PTOSS_kernel.h"
 
 
-int main(int argc, char** argv) {
-    int N=4;
-    if (argc == 1) {
-        // TODO: For no args we'll start with n=1 and compute as many terms as possible
-        
+Board computeTermCPU(int N) {
 
-        // for now let's just do an incomplete search for testing purposes
-        Board search_board;
-        int max_found = -1;
-        Board max_board;
-        unsigned int count = 0;
-        // prep board for searching
-        InitBoard(&search_board, N);
-        insert_element(&search_board, 0, 0, 2);
-        insert_one(&search_board, -1, -1);
-        insert_one(&search_board, 1, 1);
-        insert_element(&search_board, -1, 0, 0);
-        printf("initial board:\n");
-        pretty_print(&search_board);
-        while ((search_board.pos_x[1] == -1) && (search_board.pos_y[1] == 0)) {
-            next_board_state(&search_board);
-            // if (count%100000 == 0) pretty_print(&search_board);
-            // if (search_board.last_num+1 == 7) {
-            //     printf("board index %d:\n", count);
-            //     printf("last num %d:\n", search_board.last_num+1);
-            //     printf("last info %d:\n", search_board.info[search_board.last_num-1]);
-            //     pretty_print(&search_board);
-            // }
-            if (max_found < search_board.last_num) {
-                max_found = search_board.last_num;
-                CopyHostBoard(&max_board, &search_board);
+    int x_off = 1 << 12;
+    int y_off = 1 << 12;
+    Board max_board;
+    InitBoard(&max_board, N);
+    // hardcode result for n=1
+    if (N == 1) {
+        insert_one(&max_board, x_off, y_off);
+        return max_board;
+    }
+
+    // set up starting boards
+    int num_b = 6;
+    Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
+    // here is all possible ways to place the first 2 hardcoded
+    for (int i=0; i<num_b; i++) {
+        InitBoard(&search_boards[i], N);
+        insert_element(&search_boards[i], x_off, y_off, 2);
+    }
+    insert_one(&search_boards[0], x_off-1, y_off-1);
+    insert_one(&search_boards[0], x_off+1, y_off+1);
+    insert_one(&search_boards[1], x_off-1, y_off);
+    insert_one(&search_boards[1], x_off+1, y_off+1);
+    insert_one(&search_boards[2], x_off-1, y_off+1);
+    insert_one(&search_boards[2], x_off+1, y_off+1);
+    insert_one(&search_boards[3], x_off-1, y_off);
+    insert_one(&search_boards[3], x_off+1, y_off);
+    insert_one(&search_boards[4], x_off, y_off+1);
+    insert_one(&search_boards[4], x_off+1, y_off);
+    insert_one(&search_boards[5], x_off+1, y_off+1);
+    insert_one(&search_boards[5], x_off+1, y_off);
+
+    // get the 3s placed so we have convenient anchor points to check against
+    for (int depth=2; depth<3; depth++) {
+        gen_all_next_boards(&search_boards, &num_b);
+    }
+
+    // search all boards sequentially on the CPU
+    Board* B;
+    int max_found = 0;
+    int count = 0;
+    int anchor_idx, anchor_x, anchor_y;
+    clock_t tic = clock();
+    for (int i=0; i<num_b; i++) {
+        B = search_boards + i;
+        anchor_idx = B->last_num - 1;
+        anchor_x = B->pos_x[anchor_idx];
+        anchor_y = B->pos_y[anchor_idx];
+        while ((anchor_x == B->pos_x[anchor_idx]) && (anchor_y == B->pos_y[anchor_idx])) {
+            next_board_state(B);
+            if (max_found < B->last_num) {
+                max_found = B->last_num;
+                CopyHostBoard(&max_board, B);
             }
             count += 1;
-            // if (count > 1300000) break;
         }
-        printf("final board (%d):\n", max_board.last_num+1);
-        pretty_print(&max_board);
-        printf("checked %d unique states\n", count);
-
-    } else if (argc == 2) {
-        // TODO: For one arg we'll compute only the specified term
-
-
-        // for now we'll ignor the arg and do a crude search of N=2 on the GPU for testing purposes
-        Board search_boards[6];
-        Board max_board;
-        // prep boards for searching
-        for (int i=0; i<6; i++) {
-            InitBoard(&search_boards[i], N);
-            insert_element(&search_boards[i], 0, 0, 2);
-        }
-        insert_one(&search_boards[0], -1, -1);
-        insert_one(&search_boards[0], 1, 1);
-        insert_element(&search_boards[0], -1, 0, 0);
-
-        insert_one(&search_boards[1], -1, -1);
-        insert_one(&search_boards[1], 1, 0);
-        insert_element(&search_boards[1], -1, 0, 0);
-
-        insert_one(&search_boards[2], -1, -1);
-        insert_one(&search_boards[2], 1, -1);
-        insert_element(&search_boards[2], -1, 0, 0);
-
-        insert_one(&search_boards[3], 0, -1);
-        insert_one(&search_boards[3], 1, 1);
-        insert_element(&search_boards[3], -1, -1, 0);
-
-        insert_one(&search_boards[4], 0, -1);
-        insert_one(&search_boards[4], 1, 0);
-        insert_element(&search_boards[4], -1, -1, 0);
-
-        insert_one(&search_boards[5], 0, -1);
-        insert_one(&search_boards[5], 1, -1);
-        insert_element(&search_boards[5], -1, -1, 0);
-
-        printf("search boards:\n");
-        for (int i=0; i<6; i++) {
-            pretty_print(&search_boards[i]);
-        }
-
-        clock_t tic = clock();
-        SearchOnDevice(search_boards, &max_board, 6);
-        clock_t toc = clock();
-        printf("GPU time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
-
-        printf("final board (%d):\n", max_board.last_num+1);
-        pretty_print(&max_board);
     }
+    clock_t toc = clock();
+    double split = (double)(toc - tic) / CLOCKS_PER_SEC;
+    printf("CPU checked %d unique states in %.3f seconds\n", count, split);
+
+    free(search_boards);
+
+    return max_board;
 }
 
-void computeTerm(int n) {
-    //TODO: write
-    // we'll start with a predefined set of boards with 2 placed already
-    // (we can hard code/ignore trivial n=1 case)
-    // and branch breadth first until a sufficient number of boards has been generated
-    // (number of GPU threads we wish to run, probably #defined in PTOSS_kernel)
-    // call SearchOnDevice with this list of boards
-    // pretty print result and at least one example grid
-    // for fun we could eventually save all maximizing grids to a file
+Board computeTermGPU(int N) {
+
+    int x_off = 1 << 12;
+    int y_off = 1 << 12;
+    Board max_board;
+    InitBoard(&max_board, N);
+    // hardcode result for n=1
+    if (N == 1) {
+        insert_one(&max_board, x_off, y_off);
+        return max_board;
+    }
+
+    // set up starting boards
+    int num_b = 6;
+    Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
+    // here is all possible ways to place the first 2 hardcoded
+    for (int i=0; i<num_b; i++) {
+        InitBoard(&search_boards[i], N);
+        insert_element(&search_boards[i], x_off, y_off, 2);
+    }
+    insert_one(&search_boards[0], x_off-1, y_off-1);
+    insert_one(&search_boards[0], x_off+1, y_off+1);
+    insert_one(&search_boards[1], x_off-1, y_off);
+    insert_one(&search_boards[1], x_off+1, y_off+1);
+    insert_one(&search_boards[2], x_off-1, y_off+1);
+    insert_one(&search_boards[2], x_off+1, y_off+1);
+    insert_one(&search_boards[3], x_off-1, y_off);
+    insert_one(&search_boards[3], x_off+1, y_off);
+    insert_one(&search_boards[4], x_off, y_off+1);
+    insert_one(&search_boards[4], x_off+1, y_off);
+    insert_one(&search_boards[5], x_off+1, y_off+1);
+    insert_one(&search_boards[5], x_off+1, y_off);
+
+    // do a breadth first search of boards until we have sufficiently 
+    for (int depth=2; depth<4; depth++) {
+        gen_all_next_boards(&search_boards, &num_b);
+    }
+    printf("generated %d boards to search on the GPU...\n", num_b);
+    // printf("search boards:\n");
+    // for (int i=0; i<num_b; i++) {
+    //     pretty_print(&search_boards[i]);
+    // }
+
+    // search all boards in parallel on the GPU
+    clock_t tic = clock();
+    SearchOnDevice(search_boards, &max_board, num_b);
+    clock_t toc = clock();
+    printf("GPU time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+
+    free(search_boards);
+
+    return max_board;
+}
+
+int main(int argc, char** argv) {
+    Board max_board;
+    if (argc == 2) {
+        max_board = computeTermGPU(atoi(argv[1]));
+    } else if ((argc == 3) && (strcmp(argv[1], "CPU") == 0)) {
+        max_board = computeTermCPU(atoi(argv[2]));
+    } else {
+        printf("Invalid command arguments\n");
+        printf("\n");
+        printf("Usage:\n");
+        printf("  PTOSS [N<=4]          find optimal board for N ones using multithreading on the GPU\n");
+        printf("  PTOSS CPU [N<=4]      find optimal board for N ones using the CPU\n");
+        return 0;
+    }
+    printf("final board (%d):\n", max_board.last_num+1);
+    pretty_print(&max_board);
+    return 0;
 }
