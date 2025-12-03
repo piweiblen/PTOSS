@@ -8,6 +8,9 @@
 #include "PTOSS_kernel.h"
 
 
+const int depth_chart[8] = {1, 5, 5, 5, 4, 4, 4, 4};
+
+
 Board computeTermCPU(int N) {
 
     int x_off = 1 << 12;
@@ -42,7 +45,7 @@ Board computeTermCPU(int N) {
     insert_one(&search_boards[5], x_off+1, y_off);
 
     // get the 3s placed so we have convenient anchor points to check against
-    for (int depth=2; depth<3; depth++) {
+    for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
     }
 
@@ -111,7 +114,7 @@ Board computeTermGPU(int N) {
     insert_one(&search_boards[5], x_off+1, y_off);
 
     // do a breadth first search of boards until we have sufficiently 
-    for (int depth=2; depth<4; depth++) {
+    for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
     }
     printf("generated %d boards to search on the GPU...\n", num_b);

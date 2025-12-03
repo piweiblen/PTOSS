@@ -149,7 +149,7 @@ void insert_element(Board* B, int x, int y, int ones_added) {
 void insert_one(Board* B, int x, int y) {
 
     // insert a one onto our board
-    B->packed_array[MAX_HEIGHT-B->ones_left] = pack_pos(B->packed_array[B->last_num], x, y);
+    B->packed_array[MAX_HEIGHT-B->ones_left] = pack_pos(0, x, y);
     B->ones_left -= 1;
 }
 
@@ -277,8 +277,6 @@ void next_board_state(Board* B) {
             if (look_around(B, i, 0, 0)) return;
         }
     }
-
-    fprintf(stderr, "Past initial look_arounds\n");
 
     // failing to add a number, we'll attempt to move the current highest to a new position
     // continuing to remove elements until we succeed at moving one
