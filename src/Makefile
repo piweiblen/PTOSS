@@ -1,6 +1,6 @@
 
 NVCC        = nvcc
-NVCC_FLAGS  = -I/usr/local/cuda/include -gencode=arch=compute_75,code=\"sm_75,compute_75\"
+NVCC_FLAGS  = -I/usr/local/cuda/include -gencode=arch=compute_86,code=\"sm_86,compute_86\"
 ifdef dbg
 	NVCC_FLAGS  += -g -G
 else
