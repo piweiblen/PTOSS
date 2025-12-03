@@ -45,8 +45,13 @@ Board computeTermCPU(int N) {
     insert_one(&search_boards[5], x_off+1, y_off);
 
     // get the 3s placed so we have convenient anchor points to check against
-    for (int depth=2; depth<depth_chart[N-1]; depth++) {
+    for (int depth=2; depth<3; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
+        remove_duplicates(&search_boards, &num_b);
+    }
+    printf("search boards:\n");
+    for (int i=0; i<num_b; i++) {
+        pretty_print(&search_boards[i]);
     }
 
     // search all boards sequentially on the CPU
@@ -116,6 +121,7 @@ Board computeTermGPU(int N) {
     // do a breadth first search of boards until we have sufficiently 
     for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
+        remove_duplicates(&search_boards, &num_b);
     }
     printf("generated %d boards to search on the GPU...\n", num_b);
     // printf("search boards:\n");
