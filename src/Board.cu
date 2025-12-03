@@ -172,6 +172,39 @@ void remove_element(Board* B, int* one_positions) {
     B->last_num -= 1;
 }
 
+int get_neighbor(Board* B, int x, int y) {
+
+    // get the lowest index neighbor of the given position
+    int pos_x, pos_y;
+    for (int i=0; i<B->last_num; i++) {
+        uint32_t packed_int = B->packed_array[i];
+        pos_x = unpack_pos_x(packed_int);
+        pos_y = unpack_pos_y(packed_int);
+        if ((pos_x == x) && (pos_y == y)) {
+            continue;
+        }
+        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
+            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
+                return i;
+            }
+        }
+    }
+    for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) {
+        uint32_t packed_int = B->packed_array[i];
+        pos_x = unpack_pos_x(packed_int);
+        pos_y = unpack_pos_y(packed_int);
+        if ((pos_x == x) && (pos_y == y)) {
+            continue;
+        }
+        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
+            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
+                return i;
+            }
+        }
+    }
+    return MAX_HEIGHT;
+}
+
 int get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) {  //TODO: lots of wasted time here, in the end we'll want to stop when we know (sum > target)
 
     // get the sum of elements surrounding position
@@ -226,6 +259,7 @@ bool look_around(Board* B, int index, int* start_H, int* start_P) {
     int yi = unpack_pos_y(packed_int);
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
+    bool vop;  // valid one positions
     for (int H=*start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = xi + x_around[H];
         new_y = yi + y_around[H];
@@ -236,6 +270,16 @@ bool look_around(Board* B, int index, int* start_H, int* start_P) {
                 if (ones_needed <= MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) {
                     for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
+                        // validate that the one positions aren't adjacent to other numbers
+                        vop = true;
+                        for (int b=0; b<8; b++) {
+                            if ((P_bits[P] & (1<<b)) &&
+                                (get_neighbor(B, new_x+x_around[b], new_y+y_around[b]) < B->last_num)) {
+                                vop = false;
+                                break;
+                            }
+                        }
+                        if (!vop) continue;
                         insert_element(B, new_x, new_y, ones_needed);
                         for (int b=0; b<8; b++) {
                             if (P_bits[P] & (1<<b)) insert_one(B, new_x+x_around[b], new_y+y_around[b]);
@@ -287,8 +331,7 @@ void next_board_state(Board* B) {
         uint32_t packed_int = B->packed_array[B->last_num - 1];
         old_x = unpack_pos_x(packed_int);
         old_y = unpack_pos_y(packed_int);
-        get_sum(B, old_x, old_y, &old_nb, &last_P); // this line is only to get old_nb, last_P is garbage data here
-                                                    // TODO: stop being lazy here, should write a seperate func that stops when old_nb is found
+        old_nb = get_neighbor(B, old_x, old_y);
         uint32_t old_nb_packed = B->packed_array[old_nb];
         last_H = AR_IDX(old_x - unpack_pos_x(old_nb_packed), old_y - unpack_pos_y(old_nb_packed));
         // remove the element and search for new spot
@@ -459,19 +502,20 @@ void remove_duplicates(Board** boards, int* num_b) {
         for (int b2 = b1+1; b2 < *num_b; b2++) {
 
             // If the two boards are equivalent, remove the second board
-            if (equivalent(boards[b1], boards[b2])) {
+            if (equivalent(*boards + b1, *boards + b2)) {
 
                 // Loop through all following boards and shift them left
                 for (int b = b2; b < *num_b-1; b++) {
-                    boards[b] = boards[b+1];
+                    CopyHostBoard(*boards + b1, *boards + b2);
                 }
 
                 // Lower the amount of boards
-                *num_b--;
+                (*num_b)--;
                 b2--;
             }
         }
     }
+    *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
 }
 
 void gen_all_next_boards(Board** boards, int* num_b) {
