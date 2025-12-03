@@ -50,14 +50,16 @@ Board computeTermCPU(int N) {
     Board* B;
     int max_found = 0;
     int count = 0;
+    uint32_t packed_int;
     int anchor_idx, anchor_x, anchor_y;
     clock_t tic = clock();
     for (int i=0; i<num_b; i++) {
         B = search_boards + i;
         anchor_idx = B->last_num - 1;
-        anchor_x = B->pos_x[anchor_idx];
-        anchor_y = B->pos_y[anchor_idx];
-        while ((anchor_x == B->pos_x[anchor_idx]) && (anchor_y == B->pos_y[anchor_idx])) {
+        packed_int = B->packed_array[anchor_idx];
+        anchor_x = unpack_pos_x(packed_int);
+        anchor_y = unpack_pos_y(packed_int);
+        while ((anchor_x == unpack_pos_x(B->packed_array[anchor_idx])) && (anchor_y == unpack_pos_y(B->packed_array[anchor_idx]))) {
             next_board_state(B);
             if (max_found < B->last_num) {
                 max_found = B->last_num;

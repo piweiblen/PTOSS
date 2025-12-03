@@ -19,105 +19,132 @@ __device__ const int P_wieght[256] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 
 // define device functions for working with boards
 
 // these get and set functions are a little tedious, but it'll make life simple if we want to pack the board arrays later
-__device__ int get_elem(int* b_arr, int b_idx, int num_b, int elem_idx) {
+__device__ uint32_t get_elem(uint32_t* b_arr, int b_idx, int num_b, int elem_idx) {
     return b_arr[elem_idx * num_b + b_idx];
 }
 
-__device__ int get_ones_num(int* b_arr, int b_idx, int num_b) {
+__device__ int get_ones_num(uint32_t* b_arr, int b_idx, int num_b) {
     return get_elem(b_arr, b_idx, num_b, 0);
 }
 
-__device__ int get_ones_left(int* b_arr, int b_idx, int num_b) {
+__device__ int get_ones_left(uint32_t* b_arr, int b_idx, int num_b) {
     return get_elem(b_arr, b_idx, num_b, 1);
 }
 
-__device__ int get_last_num(int* b_arr, int b_idx, int num_b) {
+__device__ int get_last_num(uint32_t* b_arr, int b_idx, int num_b) {
     return get_elem(b_arr, b_idx, num_b, 2);
 }
 
-__device__ int get_pos_x(int* b_arr, int b_idx, int num_b, int arr_idx) {
-    return get_elem(b_arr, b_idx, num_b, 3+3*arr_idx);
+__device__ int get_pos_x(uint32_t* b_arr, int b_idx, int num_b, int arr_idx) {
+    uint32_t packed_int = get_elem(b_arr, b_idx, num_b, 3+arr_idx);
+    return unpack_pos_x(packed_int);
 }
 
-__device__ int get_pos_y(int* b_arr, int b_idx, int num_b, int arr_idx) {
-    return get_elem(b_arr, b_idx, num_b, 4+3*arr_idx);
+__device__ int get_pos_y(uint32_t* b_arr, int b_idx, int num_b, int arr_idx) {
+    uint32_t packed_int = get_elem(b_arr, b_idx, num_b, 3+arr_idx);
+    return unpack_pos_y(packed_int);
 }
 
-__device__ int get_info(int* b_arr, int b_idx, int num_b, int arr_idx) {
-    return get_elem(b_arr, b_idx, num_b, 5+3*arr_idx);
+__device__ int get_info(uint32_t* b_arr, int b_idx, int num_b, int arr_idx) {
+    uint32_t packed_int = get_elem(b_arr, b_idx, num_b, 3+arr_idx);
+    return unpack_info(packed_int);
 }
 
-__device__ void set_elem(int* b_arr, int b_idx, int num_b, int elem_idx, int elem) {
+__device__ void get_pos(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int* x, int* y) {
+    uint32_t packed_int = get_elem(b_arr, b_idx, num_b, 3+arr_idx);
+    *x = unpack_pos_x(packed_int);
+    *y = unpack_pos_y(packed_int);
+}
+
+__device__ void get_pos_info(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int* x, int* y, int* info) {
+    uint32_t packed_int = get_elem(b_arr, b_idx, num_b, 3+arr_idx);
+    *x = unpack_pos_x(packed_int);
+    *y = unpack_pos_y(packed_int);
+    *info = unpack_info(packed_int);
+}
+
+__device__ void set_elem(uint32_t* b_arr, int b_idx, int num_b, int elem_idx, uint32_t elem) {
     b_arr[elem_idx * num_b + b_idx] = elem;
 }
 
-__device__ void set_ones_num(int* b_arr, int b_idx, int num_b, int elem) {
-    set_elem(b_arr, b_idx, num_b, 0, elem);
+__device__ void set_ones_num(uint32_t* b_arr, int b_idx, int num_b, int new_ones_num) {
+    set_elem(b_arr, b_idx, num_b, 0, new_ones_num);
 }
 
-__device__ void set_ones_left(int* b_arr, int b_idx, int num_b, int elem) {
-    set_elem(b_arr, b_idx, num_b, 1, elem);
+__device__ void set_ones_left(uint32_t* b_arr, int b_idx, int num_b, int new_ones_left) {
+    set_elem(b_arr, b_idx, num_b, 1, new_ones_left);
 }
 
-__device__ void set_last_num(int* b_arr, int b_idx, int num_b, int elem) {
+__device__ void set_last_num(uint32_t* b_arr, int b_idx, int num_b, int elem) {
     set_elem(b_arr, b_idx, num_b, 2, elem);
 }
 
-__device__ void set_pos_x(int* b_arr, int b_idx, int num_b, int arr_idx, int elem) {
-    set_elem(b_arr, b_idx, num_b, 3+3*arr_idx, elem);
+__device__ void set_pos_x(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int new_x) {
+    uint32_t packed_int = pack_pos_x(get_elem(b_arr, b_idx, num_b, 3+arr_idx), new_x);
+    set_elem(b_arr, b_idx, num_b, 3+arr_idx, packed_int);
 }
 
-__device__ void set_pos_y(int* b_arr, int b_idx, int num_b, int arr_idx, int elem) {
-    set_elem(b_arr, b_idx, num_b, 4+3*arr_idx, elem);
+__device__ void set_pos_y(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int new_y) {
+    uint32_t packed_int = pack_pos_y(get_elem(b_arr, b_idx, num_b, 3+arr_idx), new_y);
+    set_elem(b_arr, b_idx, num_b, 3+arr_idx, packed_int);
 }
 
-__device__ void set_info(int* b_arr, int b_idx, int num_b, int arr_idx, int elem) {
-    set_elem(b_arr, b_idx, num_b, 5+3*arr_idx, elem);
+__device__ void set_info(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int new_info) {
+    uint32_t packed_int = pack_info(get_elem(b_arr, b_idx, num_b, 3+arr_idx), new_info);
+    set_elem(b_arr, b_idx, num_b, 3+arr_idx, packed_int);
 }
 
-__device__ void copy_device_board(int* b_arr1, int b_idx1, int num_b1, int* b_arr2, int b_idx2, int num_b2) {
+__device__ void set_pos(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int new_x, int new_y) {
+    uint32_t packed_int = pack_pos(get_elem(b_arr, b_idx, num_b, 3+arr_idx), new_x, new_y);
+    set_elem(b_arr, b_idx, num_b, 3+arr_idx, packed_int);
+}
+
+__device__ void set_pos_info(uint32_t* b_arr, int b_idx, int num_b, int arr_idx, int new_x, int new_y, int new_info) {
+    uint32_t packed_int = pack(new_x, new_y, new_info);
+    set_elem(b_arr, b_idx, num_b, 3+arr_idx, packed_int);
+}
+
+__device__ void copy_device_board(uint32_t* b_arr1, int b_idx1, int num_b1, uint32_t* b_arr2, int b_idx2, int num_b2) {
     for (int i=0; i<sizeof(Board)/sizeof(int); i++) {
         set_elem(b_arr1, b_idx1, num_b1, i, get_elem(b_arr2, b_idx2, num_b2, i));
     }
 }
 
 // these are ports of the functions in Board.cu
-__device__ void insert_element(int* b_arr, int b_idx, int num_b, int x, int y, int ones_added) {
+__device__ void insert_element(uint32_t* b_arr, int b_idx, int num_b, int x, int y, int ones_added) {
 
     // insert an element onto our board
     int last_num = get_last_num(b_arr, b_idx, num_b);
-    set_pos_x(b_arr, b_idx, num_b, last_num, x);
-    set_pos_y(b_arr, b_idx, num_b, last_num, y);
-    set_info(b_arr, b_idx, num_b, last_num, ones_added);
+    set_pos_info(b_arr, b_idx, num_b, last_num, x, y, ones_added);
     set_last_num(b_arr, b_idx, num_b, last_num + 1);
 }
 
-__device__ void insert_one(int* b_arr, int b_idx, int num_b, int x, int y) {
+__device__ void insert_one(uint32_t* b_arr, int b_idx, int num_b, int x, int y) {
 
     // insert a one onto our board
     int ones_left = get_ones_left(b_arr, b_idx, num_b);
-    set_pos_x(b_arr, b_idx, num_b, MAX_HEIGHT-ones_left, x);
-    set_pos_y(b_arr, b_idx, num_b, MAX_HEIGHT-ones_left, y);
+    set_pos(b_arr, b_idx, num_b, MAX_HEIGHT-ones_left, x, y);
     set_ones_left(b_arr, b_idx, num_b, ones_left - 1);
 }
 
-__device__ void remove_element(int* b_arr, int b_idx, int num_b, int* one_positions) {
+__device__ void remove_element(uint32_t* b_arr, int b_idx, int num_b, int* one_positions) {
 
     // remove an element from our board
     int last_num = get_last_num(b_arr, b_idx, num_b);
     int ones_left = get_ones_left(b_arr, b_idx, num_b);
-    int otr = get_info(b_arr, b_idx, num_b, last_num - 1);  // ones to remove
-    int x = get_pos_x(b_arr, b_idx, num_b, last_num - 1);
-    int y = get_pos_y(b_arr, b_idx, num_b, last_num - 1);
+    int x, y, otr;
+    get_pos_info(b_arr, b_idx, num_b, last_num - 1, &x, &y, &otr);
     *one_positions = 0;
     for (int i=MAX_HEIGHT-ones_left-otr; i<MAX_HEIGHT-ones_left; i++) {
-        *one_positions |= (1 << AR_IDX(get_pos_x(b_arr, b_idx, num_b, i) - x, get_pos_y(b_arr, b_idx, num_b, i) - y));
+        int xi, yi;
+        get_pos(b_arr, b_idx, num_b, i, &xi, &yi);
+        *one_positions |= (1 << AR_IDX(xi - x, yi - y));
     }
     set_ones_left(b_arr, b_idx, num_b, ones_left + otr);
     set_last_num(b_arr, b_idx, num_b, last_num - 1);
 }
 
-__device__ int get_sum(int* b_arr, int b_idx, int num_b, int x, int y, int* least_neighbor, int* open_neighbors) {
+__device__ int get_sum(uint32_t* b_arr, int b_idx, int num_b, int x, int y, int* least_neighbor, int* open_neighbors) {
 
     // get the sum of elements surrounding position
     // returns -1 if position already populated
@@ -129,8 +156,7 @@ __device__ int get_sum(int* b_arr, int b_idx, int num_b, int x, int y, int* leas
     *least_neighbor = MAX_HEIGHT;
     *open_neighbors = 255;
     for (int i=0; i<last_num; i++) {
-        pos_x = get_pos_x(b_arr, b_idx, num_b, i);
-        pos_y = get_pos_y(b_arr, b_idx, num_b, i);
+        get_pos(b_arr, b_idx, num_b, i, &pos_x, &pos_y);
         if ((pos_x == x) && (pos_y == y)) {
             return -1;
         }
@@ -143,8 +169,7 @@ __device__ int get_sum(int* b_arr, int b_idx, int num_b, int x, int y, int* leas
         }
     }
     for (int i=MAX_HEIGHT-ones_num; i<MAX_HEIGHT-ones_left; i++) {
-        pos_x = get_pos_x(b_arr, b_idx, num_b, i);
-        pos_y = get_pos_y(b_arr, b_idx, num_b, i);
+        get_pos(b_arr, b_idx, num_b, i, &pos_x, &pos_y);
         if ((pos_x == x) && (pos_y == y)) {
             return -1;
         }
@@ -159,14 +184,14 @@ __device__ int get_sum(int* b_arr, int b_idx, int num_b, int x, int y, int* leas
     return sum;
 }
 
-__device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int start_H, int start_P) {
+__device__ bool look_around(uint32_t* b_arr, int b_idx, int num_b, int index, int start_H, int start_P) {
 
     // check around the location of a particular index for a spot to place the next element
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
     int last_num = get_last_num(b_arr, b_idx, num_b);
-    int pos_x = get_pos_x(b_arr, b_idx, num_b, index);
-    int pos_y = get_pos_y(b_arr, b_idx, num_b, index);
+    int pos_x, pos_y;
+    get_pos(b_arr, b_idx, num_b, index, &pos_x, &pos_y);
     for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = pos_x + x_around[H];
         new_y = pos_y + y_around[H];
@@ -191,7 +216,7 @@ __device__ bool look_around(int* b_arr, int b_idx, int num_b, int index, int sta
     return false;
 }
 
-__device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
+__device__ void next_board_state(uint32_t* b_arr, int b_idx, int num_b) {
 
     // iterate a board to its next state i.e. the next position in the search
     // this function assumes that "2" has already been placed
@@ -218,8 +243,9 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
     int old_nb, last_H, last_P;
     while (last_num - 1) {  // abort if "3" is removed
         // first find where we left off
-        old_x = get_pos_x(b_arr, b_idx, num_b, last_num - 1);
-        old_y = get_pos_y(b_arr, b_idx, num_b, last_num - 1);
+        get_pos(b_arr, b_idx, num_b, last_num - 1, &old_x, &old_y);
+        // old_x = get_pos_x(b_arr, b_idx, num_b, last_num - 1);
+        // old_y = get_pos_y(b_arr, b_idx, num_b, last_num - 1);
         get_sum(b_arr, b_idx, num_b, old_x, old_y, &old_nb, &last_P);  // this line is only to get old_nb, last_P is garbage data here
                                                                        // TODO: stop being lazy here, should write a seperate func that stops when old_nb is found
         last_H = AR_IDX(old_x - get_pos_x(b_arr, b_idx, num_b, old_nb), old_y - get_pos_y(b_arr, b_idx, num_b, old_nb));
@@ -244,21 +270,23 @@ __device__ void next_board_state(int* b_arr, int b_idx, int num_b) {
 }
 
 // Main kernel for parallel board search
-__global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b) {
+__global__ void SearchKernel(uint32_t* b_arr, uint32_t* max_board, int* cur_max, int num_b) {
     //TODO: assign each thread one board to completely search the state space of
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {
         int anchor_idx = get_last_num(b_arr, b_idx, num_b) - 1;
-        int anchor_x = get_pos_x(b_arr, b_idx, num_b, anchor_idx);
-        int anchor_y = get_pos_y(b_arr, b_idx, num_b, anchor_idx);
+        int anchor_x, anchor_y;
+        get_pos(b_arr, b_idx, num_b, anchor_idx, &anchor_x, &anchor_y);
         while (true) {
             next_board_state(b_arr, b_idx, num_b);
             if (*cur_max < get_last_num(b_arr, b_idx, num_b)) {
                 atomicMax(cur_max, get_last_num(b_arr, b_idx, num_b));
                 copy_device_board(max_board, 0, 1, b_arr, b_idx, num_b);  // TODO: make atomic!!
             }
-            if ((anchor_x != get_pos_x(b_arr, b_idx, num_b, anchor_idx))
-             || (anchor_y != get_pos_y(b_arr, b_idx, num_b, anchor_idx))) {
+            int test_x, test_y;
+            get_pos(b_arr, b_idx, num_b, anchor_idx, &test_x, &test_y);
+            if ((anchor_x != test_x)
+             || (anchor_y != test_y)) {
                 break;
             }
         }
@@ -269,18 +297,18 @@ __global__ void SearchKernel(int* b_arr, int* max_board, int* cur_max, int num_b
 void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
 
     // do a bit of data marshalling
-    int* Boards_host = (int*) malloc(num_b * sizeof(Board));
+    uint32_t* Boards_host = (uint32_t*) malloc(num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
     flatten_board_list(Boards_host, Boards, num_b);
 
     // set up device memory
     int* cur_max;
     cudaMalloc((void**) &cur_max, sizeof(int));
 	cudaMemset(cur_max, 0, sizeof(int));
-    int* max_board_device;
-    cudaMalloc((void**) &max_board_device, sizeof(Board));
-    int* Boards_device;
-    cudaMalloc((void**) &Boards_device, num_b * sizeof(Board));
-    cudaMemcpy(Boards_device, Boards_host, num_b * sizeof(Board), cudaMemcpyHostToDevice);
+    uint32_t* max_board_device;
+    cudaMalloc((void**) &max_board_device, (MAX_HEIGHT+3) * sizeof(uint32_t));
+    uint32_t* Boards_device;
+    cudaMalloc((void**) &Boards_device, num_b * (MAX_HEIGHT + 3) * sizeof(uint32_t));
+    cudaMemcpy(Boards_device, Boards_host, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
     // Setup the execution configuration
 	dim3 blockDim(BLOCK_SIZE, 1, 1);
@@ -294,8 +322,8 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     // int* host_cur_max = (int*) malloc(sizeof(int));
     // cudaMemcpy(host_cur_max, cur_max, sizeof(int), cudaMemcpyDeviceToHost);
     // printf("device max last pos: %d\n", *host_cur_max);
-    int* max_board_host = (int*) malloc(sizeof(Board));
-    cudaMemcpy(max_board_host, max_board_device, sizeof(Board), cudaMemcpyDeviceToHost);
+    uint32_t* max_board_host = (uint32_t*) malloc((MAX_HEIGHT+3) * sizeof(uint32_t));
+    cudaMemcpy(max_board_host, max_board_device, (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     unflatten_board_list(max_board, max_board_host, 1);
 
     // free memory
