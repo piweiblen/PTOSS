@@ -119,6 +119,35 @@ __device__ void dvc_remove_element(Board* B, int* one_positions) {
     B->last_num -= 1;
 }
 
+__device__ int dvc_get_neighbor(Board* B, int x, int y) {
+
+    // get the lowest index neighbor of the given position
+    int pos_x, pos_y;
+    for (int i=0; i<B->last_num; i++) {
+        get_pos(B, i, &pos_x, &pos_y);
+        if ((pos_x == x) && (pos_y == y)) {
+            continue;
+        }
+        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
+            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
+                return i;
+            }
+        }
+    }
+    for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) {
+        get_pos(B, i, &pos_x, &pos_y);
+        if ((pos_x == x) && (pos_y == y)) {
+            continue;
+        }
+        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
+            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
+                return i;
+            }
+        }
+    }
+    return MAX_HEIGHT;
+}
+
 __device__ int dvc_get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) {
 
     // get the sum of elements surrounding position
@@ -162,6 +191,7 @@ __device__ bool dvc_look_around(Board* B, int index, int start_H, int start_P) {
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
     int pos_x, pos_y;
+    bool vop;  // valid one positions
     get_pos(B, index, &pos_x, &pos_y);
     for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = pos_x + x_around[H];
@@ -173,7 +203,16 @@ __device__ bool dvc_look_around(Board* B, int index, int start_H, int start_P) {
                 if (ones_needed <= MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) {
                     for (int P=MAX(start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
-                        // TODO: validate that the one positions aren't adjacent to other numbers
+                        // validate that the one positions aren't adjacent to other numbers
+                        vop = true;
+                        for (int b=0; b<8; b++) {
+                            if ((P_bits[P] & (1<<b)) &&
+                                (dvc_get_neighbor(B, new_x+x_around[b], new_y+y_around[b]) < B->last_num)) {
+                                vop = false;
+                                break;
+                            }
+                        }
+                        if (!vop) continue;
                         dvc_insert_element(B, new_x, new_y, ones_needed);
                         for (int b=0; b<8; b++) {
                             if (P_bits[P] & (1<<b)) dvc_insert_one(B, new_x+x_around[b], new_y+y_around[b]);
@@ -214,8 +253,7 @@ __device__ void dvc_next_board_state(Board* B) {
     while (B->last_num - 1) {  // abort if "3" is removed
         // first find where we left off
         get_pos(B, B->last_num - 1, &old_x, &old_y);
-        dvc_get_sum(B, old_x, old_y, &old_nb, &last_P);  // this line is only to get old_nb, last_P is garbage data here
-                                                                       // TODO: stop being lazy here, should write a seperate func that stops when old_nb is found
+        old_nb = dvc_get_neighbor(B, old_x, old_y);
         get_pos(B, old_nb, &nb_x, &nb_y);
         last_H = AR_IDX(old_x - nb_x, old_y - nb_y);
         // remove the element and search for new spot
