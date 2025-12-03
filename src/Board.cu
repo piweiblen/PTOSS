@@ -313,17 +313,167 @@ void next_board_state(Board* B) {
     }
 }
 
+// Normalize a position array - helper function for equivalent()
+void normalize(int pos[][2], int last_num) {
+    // Find the minimum x and y coordinates
+    int min_x = pos[0][0];
+    int min_y = pos[0][1];
+    for (int i = 1; i < last_num; i++) {
+        if (pos[i][0] < min_x) min_x = pos[i][0];
+        if (pos[i][1] < min_y) min_y = pos[i][1];
+    }
+
+    // Translate all positions so that the minimum coordinate is at 0, 0
+    int translation_x = 0 - min_x;
+    int translation_y = 0 - min_y;
+    for (int i = 0; i < last_num; i++) {
+        pos[i][0] += translation_x;
+        pos[i][1] += translation_y;
+    }
+}
+
+// Transform a position array - helper function for equivalent()
+void transform(int pos[][2], int trans_pos[][2], int last_num, int transform) {
+
+    // Bools defining how to transform the array
+    bool swap = false;
+    bool x_positive = true;
+    bool y_positive = true;
+
+    // Set bools according to the type of transformation
+    if (transform == 1) { // 90° rotation
+        swap = true;
+        y_positive = false;
+    } else if (transform == 2) { // 180° rotation
+        x_positive = false;
+        y_positive = false;
+    } else if (transform == 3) { // 270° rotation
+        swap = true;
+        x_positive = false;
+    } else if (transform == 4) { // Horizontal reflection
+        x_positive = false;
+    } else if (transform == 5) { // Vertical Reflection
+        y_positive = false;
+    } else if (transform == 6) { // Diagonal reflection
+        swap = true;
+    } else if (transform == 7) { // Negative diagonal reflection
+        swap = true;
+        x_positive = false;
+        y_positive = false;
+    }
+
+    // Apply the transformation
+    for (int i = 0; i < last_num; i++) {
+
+        // Copy numbers over - either swapping x and y coordinates or not
+        if (swap) {
+            trans_pos[i][0] = pos[i][1];
+            trans_pos[i][1] = pos[i][0];
+        } else {
+            trans_pos[i][0] = pos[i][0];
+            trans_pos[i][1] = pos[i][1];
+        }
+
+        // Make x positive or negative
+        if (!x_positive)
+            trans_pos[i][0] *= -1;
+
+        // Make y positive or negative
+        if (!y_positive)
+            trans_pos[i][1] *= -1;
+    }
+}
+
+// Check if two position arrays are equivalent - helper function for equivalent()
+bool pos_array_equivalent(int pos1[][2], int pos2[][2], int last_num) {
+    for(int i = 0; i < last_num; i++) {
+        if (pos1[i][0] != pos2[i][0] || pos1[i][1] != pos2[i][1]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Determine if two boards are equivalent up to reflection/rotation
 bool equivalent(Board* B1, Board* B2) {
 
-    // determine if two boards are equivalent up to reflection/rotation
-    // TODO: write
+    // Check if the last nums from both boards are equal - if not, then they're not equivalent
+    int last_num = B1->last_num;
+    if (last_num != B2->last_num)
+        return false;
+
+    // Create an array of positions for both boards
+    int (*B1_pos)[2] = (int (*)[2]) malloc(last_num * sizeof(int[2])); // TODO: eliminate malloc and free calls - too resource heavy
+    int (*B2_pos)[2] = (int (*)[2]) malloc(last_num * sizeof(int[2]));
+
+    // Load all the numbers into the arrays
+    for (int i = 0; i < last_num; i++) {
+        uint32_t B1_packed_int = B1->packed_array[i];
+        uint32_t B2_packed_int = B2->packed_array[i];
+        B1_pos[i][0] = unpack_pos_x(B1_packed_int);
+        B1_pos[i][1] = unpack_pos_y(B1_packed_int);
+        B2_pos[i][0] = unpack_pos_x(B2_packed_int);
+        B2_pos[i][1] = unpack_pos_y(B2_packed_int);
+    }
+
+    // Normalize the arrays
+    normalize(B1_pos, last_num);
+    normalize(B2_pos, last_num);
+
+    // Check if the normalized arrays are equivalent
+    if (pos_array_equivalent(B1_pos, B2_pos, last_num)) {
+        free(B1_pos);
+        free(B2_pos);
+        return true;
+    }
+
+    // Create the transformed B2 position array
+    int (*B2_trans_pos)[2] = (int (*)[2]) malloc(last_num * sizeof(int[2]));
+
+    // Try all the different rotations + reflections
+    for (int t = 1; t < 8; t++) {
+
+        // Make the transformation
+        transform(B2_pos, B2_trans_pos, last_num, t);
+        normalize(B2_trans_pos, last_num);
+
+        // Return true if the transformed B2 array and B1 array are equivalent
+        if (pos_array_equivalent(B1_pos, B2_trans_pos, last_num)) {
+            free(B1_pos);
+            free(B2_pos);
+            free(B2_trans_pos);
+            return true;
+        }
+    }
+
+    // Tried all transformations - must not be equivalent
+    free(B1_pos);
+    free(B2_pos);
+    free(B2_trans_pos);
     return false;
 }
 
+// Give an array of boards, remove all boards which are duplicates
 void remove_duplicates(Board** boards, int* num_b) {
     
-    // remove all duplicate boards from an array of boards
-    // TODO: write
+    // Loop through all pairs of boards
+    for (int b1 = 0; b1 < *num_b-1; b1++) {
+        for (int b2 = b1+1; b2 < *num_b; b2++) {
+
+            // If the two boards are equivalent, remove the second board
+            if (equivalent(boards[b1], boards[b2])) {
+
+                // Loop through all following boards and shift them left
+                for (int b = b2; b < *num_b-1; b++) {
+                    boards[b] = boards[b+1];
+                }
+
+                // Lower the amount of boards
+                *num_b--;
+                b2--;
+            }
+        }
+    }
 }
 
 void gen_all_next_boards(Board** boards, int* num_b) {
