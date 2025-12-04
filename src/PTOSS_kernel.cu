@@ -239,11 +239,12 @@ __device__ void dvc_next_board_state(Board* B) {
     for (int i=B->last_num - B->ones_num; i<B->last_num; i++) {  // we need to also look around high numbers
         if (dvc_look_around(B, i, 0, 0)) return;
     }
-    if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-        for (int i=MAX_HEIGHT - B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) { 
-            if (dvc_look_around(B, i, 0, 0)) return;
-        }
-    }
+    // we can forgo looking around ones so long as our initial boards already have min(N,8) placed
+    // if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
+    //     for (int i=MAX_HEIGHT - B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) { 
+    //         if (dvc_look_around(B, i, 0, 0)) return;
+    //     }
+    // }
 
     // failing to add a number, we'll attempt to move the current highest to a new position
     // continuing to remove elements until we succeed at moving one
@@ -266,11 +267,12 @@ __device__ void dvc_next_board_state(Board* B) {
         for (int i=MAX(old_nb+1, B->last_num - B->ones_num); i<B->last_num; i++) {  // we need to also look around high numbers
             if (dvc_look_around(B, i, 0, 0)) return;
         }
-        if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-            for (int i=MAX(old_nb+1, MAX_HEIGHT - B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
-                if (dvc_look_around(B, i, 0, 0)) return;
-            }
-        }
+        // we can forgo looking around ones so long as our initial boards already have min(N,8) placed
+        // if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
+        //     for (int i=MAX(old_nb+1, MAX_HEIGHT - B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
+        //         if (dvc_look_around(B, i, 0, 0)) return;
+        //     }
+        // }
     }
 }
 
