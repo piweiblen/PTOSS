@@ -22,7 +22,7 @@ void insert_element(Board* B, int x, int y, int ones_added);
 void insert_one(Board* B, int x, int y);
 void next_board_state(Board* B);
 bool equivalent(Board* B1, Board* B2);
-void remove_duplicates(Board** boards, int* num_b);
+void remove_duplicates(Board** boards, int* num_b, bool realloc_arr);
 void gen_all_next_boards(Board** boards, int* num_b);
 
 // Pack a pos_x, pos_y, and info int into a single uint32_t
@@ -58,14 +58,6 @@ __host__ __device__ inline uint32_t pack_info(uint32_t packed_int, int info) {
     packed_int &= ~(0x3F << 26); // Clear old info
     packed_int |= ((uint32_t) info & 0x3F) << 26; // Add new info
     return packed_int;
-}
-
-// Pack all three int arrays into one uint32_t array
-inline void pack_arrays(uint32_t* packed_array, int* pos_x, int* pos_y, int* info) {
-    // Loop and pack each corresponding 3 ints into packed_ints array
-    for (int i = 0; i < MAX_HEIGHT; i++) {
-        packed_array[i] = pack(pos_x[i], pos_y[i], info[i]);
-    }
 }
 
 // Unpack pos_x int
