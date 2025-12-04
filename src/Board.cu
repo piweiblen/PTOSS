@@ -493,7 +493,7 @@ bool equivalent(Board* B1, Board* B2) {
 }
 
 // Give an array of boards, remove all boards which are duplicates
-void remove_duplicates(Board** boards, int* num_b) {
+void remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
     
     // Loop through all pairs of boards
     for (int b1 = 0; b1 < *num_b-1; b1++) {
@@ -513,7 +513,9 @@ void remove_duplicates(Board** boards, int* num_b) {
             }
         }
     }
-    *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
+    if (realloc_arr) {
+        *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
+    }
 }
 
 void gen_all_next_boards(Board** boards, int* num_b) {
@@ -522,10 +524,13 @@ void gen_all_next_boards(Board** boards, int* num_b) {
     int new_num_b = 16;
     Board* new_boards = (Board *) malloc(new_num_b * sizeof(Board));
     int cur_idx = 0;
+    int dedup_idx, dedup_num;
+    Board** dedup_ptr = (Board **) malloc(sizeof(*dedup_ptr));
     int start_H, start_P;
     Board* B;
     for (int i=0; i<*num_b; i++) {  // loop over all boards
         B = (*boards) + i;
+        dedup_idx = cur_idx;
         for (int j=0; j<MAX_HEIGHT-B->ones_left; j++) {  // loop over all possible anchors for the next number
             // filter out impossible anchors
             if ((j >= B->last_num / 2) && (j < B->last_num - B->ones_num)) continue;
@@ -549,13 +554,15 @@ void gen_all_next_boards(Board** boards, int* num_b) {
                 }
             }
         }
+        // deduplicate generated boards
+        dedup_num = cur_idx - dedup_idx;
+        *dedup_ptr = new_boards + dedup_idx;
+        remove_duplicates(dedup_ptr, &dedup_num, false);
+        cur_idx = dedup_idx + dedup_num;
     }
     *boards = (Board *) realloc(*boards, cur_idx * sizeof(Board));
     memcpy(*boards, new_boards, cur_idx * sizeof(Board));
+    free(dedup_ptr);
     free(new_boards);
     *num_b = cur_idx;
-}
-
-void pos_x_add() {
-
 }

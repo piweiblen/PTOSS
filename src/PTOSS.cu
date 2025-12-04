@@ -8,9 +8,6 @@
 #include "PTOSS_kernel.h"
 
 
-const int depth_chart[8] = {1, 5, 5, 5, 5, 3, 3, 3};
-
-
 Board computeTermCPU(int N) {
 
     int x_off = 1 << 12;
@@ -45,11 +42,10 @@ Board computeTermCPU(int N) {
     insert_one(&search_boards[5], x_off+1, y_off);
 
     // get the 3s placed so we have convenient anchor points to check against
-    for (int depth=2; depth<depth_chart[N]; depth++) {
+    const int depth_chart[8] = {1, 4, 4, 4, 3, 3, 3, 3};
+    for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
         printf("generated %d boards at depth %d...\n", num_b, depth+1);
-        remove_duplicates(&search_boards, &num_b);
-        printf("deduplicated down to %d boards...\n", num_b);
     }
     printf("searching %d boards...\n", num_b);
     // for (int i=0; i<num_b; i++) {
@@ -120,10 +116,11 @@ Board computeTermGPU(int N) {
     insert_one(&search_boards[5], x_off+1, y_off+1);
     insert_one(&search_boards[5], x_off+1, y_off);
 
-    // do a breadth first search of boards until we have sufficiently 
+    // do a breadth first search of boards until we have sufficiently many
+    const int depth_chart[8] = {1, 5, 5, 6, 3, 3, 3, 3};
     for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
-        remove_duplicates(&search_boards, &num_b);
+        printf("generated %d boards at depth %d...\n", num_b, depth+1);
     }
     printf("generated %d boards to search on the GPU...\n", num_b);
     // printf("search boards:\n");
