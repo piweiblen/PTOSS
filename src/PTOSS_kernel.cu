@@ -46,61 +46,35 @@ __device__ void set_board_in_flat(uint32_t* b_arr, int b_idx, int num_b, const B
     }
 }
 
-__device__ int get_pos_x(Board* B, int arr_idx) {
-    return unpack_pos_x(B->packed_array[arr_idx]);
-}
-
-__device__ int get_pos_y(Board* B, int arr_idx) {
-    return unpack_pos_y(B->packed_array[arr_idx]);
-}
-
 __device__ int get_info(Board* B, int arr_idx) {
     return unpack_info(B->packed_array[arr_idx]);
 }
 
 __device__ void get_pos(Board* B, int arr_idx, int* x, int* y) {
-    *x = unpack_pos_x(B->packed_array[arr_idx]);
-    *y = unpack_pos_y(B->packed_array[arr_idx]);
+    uint32_t packed_int = B->packed_array[arr_idx];
+    *x = unpack_pos_x(packed_int);
+    *y = unpack_pos_y(packed_int);
 }
 
 __device__ void get_pos_info(Board* B, int arr_idx, int* x, int* y, int* info) {
-    *x = unpack_pos_x(B->packed_array[arr_idx]);
-    *y = unpack_pos_y(B->packed_array[arr_idx]);
-    *info = unpack_info(B->packed_array[arr_idx]);
-}
-
-__device__ void set_pos_x(Board* B, int arr_idx, int new_x) {
-    B->packed_array[arr_idx] = pack_pos_x(B->packed_array[arr_idx], new_x);
-}
-
-__device__ void set_pos_y(Board* B, int arr_idx, int new_y) {
-    B->packed_array[arr_idx] = pack_pos_y(B->packed_array[arr_idx], new_y);
-}
-
-__device__ void set_info(Board* B, int arr_idx, int new_info) {
-    B->packed_array[arr_idx] = pack_info(B->packed_array[arr_idx], new_info);
-}
-
-__device__ void set_pos(Board* B, int arr_idx, int new_x, int new_y) {
-    B->packed_array[arr_idx] = pack_pos(B->packed_array[arr_idx], new_x, new_y);
-}
-
-__device__ void set_pos_info(Board* B, int arr_idx, int new_x, int new_y, int new_info) {
-    B->packed_array[arr_idx] = pack(new_x, new_y, new_info);
+    uint32_t packed_int = B->packed_array[arr_idx];
+    *x = unpack_pos_x(packed_int);
+    *y = unpack_pos_y(packed_int);
+    *info = unpack_info(packed_int);
 }
 
 // these are ports(ish) of the functions in Board.cu
 __device__ void dvc_insert_element(Board* B, int x, int y, int ones_added) {
 
     // insert an element onto our board
-    set_pos_info(B, B->last_num, x, y, ones_added);
+    B->packed_array[B->last_num] = pack(x, y, ones_added, 0);
     B->last_num += 1;
 }
 
 __device__ void dvc_insert_one(Board* B, int x, int y) {
 
     // insert a one onto our board
-    set_pos(B, MAX_HEIGHT-B->ones_left, x, y);
+    B->packed_array[MAX_HEIGHT-B->ones_left] = pack(x, y, 0, 0);
     B->ones_left -= 1;
 }
 
@@ -148,7 +122,7 @@ __device__ int dvc_get_neighbor(Board* B, int x, int y) {
     return MAX_HEIGHT;
 }
 
-__device__ int dvc_get_sum(Board* B, int x, int y, int* least_neighbor, int* open_neighbors) {
+__device__ int dvc_get_sum(Board* B, int x, int y, int target, int* least_neighbor, int* open_neighbors) {
 
     // get the sum of elements surrounding position
     // returns -1 if position already populated
@@ -166,6 +140,7 @@ __device__ int dvc_get_sum(Board* B, int x, int y, int* least_neighbor, int* ope
                 sum += i+2;
                 *least_neighbor = MIN(*least_neighbor, i);
                 *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
+                if (sum > target) return sum;
             }
         }
     }
@@ -179,6 +154,7 @@ __device__ int dvc_get_sum(Board* B, int x, int y, int* least_neighbor, int* ope
                 sum += 1;
                 *least_neighbor = MIN(*least_neighbor, i);
                 *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
+                if (sum > target) return sum;
             }
         }
     }
@@ -196,7 +172,7 @@ __device__ bool dvc_look_around(Board* B, int index, int start_H, int start_P) {
     for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = pos_x + x_around[H];
         new_y = pos_y + y_around[H];
-        cur_sum = dvc_get_sum(B, new_x, new_y, &min_nb, &open_nb);
+        cur_sum = dvc_get_sum(B, new_x, new_y, B->last_num + 2, &min_nb, &open_nb);
         if (min_nb == index) {  // don't go in spots we've already checked
             if (cur_sum <= B->last_num + 2) {
                 ones_needed = B->last_num + 2 - cur_sum;
@@ -320,6 +296,7 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
 	dim3 gridDim((num_b + BLOCK_SIZE - 1) / BLOCK_SIZE, 1, 1);
 
     // Launch the device computation threads
+    printf("launching kernel...\n");
 	SearchKernel<<<gridDim,blockDim>>>(Boards_device, cur_max, num_b);
 	cudaDeviceSynchronize();
 
