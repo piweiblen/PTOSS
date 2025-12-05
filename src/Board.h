@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAX_HEIGHT 100
+#define MAX_HEIGHT 85
 #define C_OFF (1<<12)
 
 // Board Structure declaration
