@@ -1,7 +1,7 @@
 #ifndef _GPU_KERNEL_
 #define _GPU_KERNEL_
 
-#define BLOCK_SIZE 128
+#define BLOCK_SIZE 4
 
 void SearchOnDevice(Board* Boards, Board* max_board, int num_boards);
 
