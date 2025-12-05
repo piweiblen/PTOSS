@@ -39,7 +39,6 @@ Board computeTermCPU(int N) {
     insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
     insert_one(&search_boards[5], C_OFF+1, C_OFF);
 
-    clock_t tic = clock();
     // get the 3s placed so we have convenient anchor points to check against
     const int depth_chart[8] = {1, 4, 4, 4, 3, 3, 3, 3};
     for (int depth=2; depth<depth_chart[N-1]; depth++) {
@@ -52,6 +51,7 @@ Board computeTermCPU(int N) {
     // }
 
     // search all boards sequentially on the CPU
+    clock_t tic = clock();
     Board* B;
     int max_found = 0;
     int count = 0;
@@ -112,20 +112,20 @@ Board computeTermGPU(int N) {
     insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
     insert_one(&search_boards[5], C_OFF+1, C_OFF);
 
-    clock_t tic = clock();
     // do a breadth first search of boards until we have sufficiently many
-    const int depth_chart[8] = {1, 6, 9, 6, 5, 6, 7, 8};
+    const int depth_chart[8] = {1, 6, 9, 9, 5, 6, 7, 8};
     for (int depth=2; depth<depth_chart[N-1]; depth++) {
         gen_all_next_boards(&search_boards, &num_b);
         printf("generated %d boards at depth %d...\n", num_b, depth+1);
     }
-    printf("generated %d boards to search on the GPU...\n", num_b);
+    printf("searching %d boards on the GPU...\n", num_b);
     // printf("search boards:\n");
     // for (int i=0; i<num_b; i++) {
     //     pretty_print(&search_boards[i]);
     // }
 
     // search all boards in parallel on the GPU
+    clock_t tic = clock();
     SearchOnDevice(search_boards, &max_board, num_b);
     clock_t toc = clock();
     printf("GPU time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);

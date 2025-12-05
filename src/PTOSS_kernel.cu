@@ -101,9 +101,9 @@ __device__ void dvc_remove_element(BoardDevice* B, int* one_positions, uint32_t*
     B->last_num -= 1;
 }
 
-__device__ int dvc_get_neighbor(BoardDevice* B, int x, int y, uint32_t* packed_array) {
+// get the lowest index of neighboring cells of the given position
+__device__ int dvc_get_anchor(BoardDevice* B, int x, int y, uint32_t* packed_array) {
 
-    // get the lowest index neighbor of the given position
     int pos_x, pos_y;
     for (int i=0; i<B->last_num; i++) {
         get_pos(B, i, &pos_x, &pos_y, packed_array);
@@ -130,10 +130,10 @@ __device__ int dvc_get_neighbor(BoardDevice* B, int x, int y, uint32_t* packed_a
     return MAX_HEIGHT;
 }
 
+// get the sum of elements surrounding position
+// returns INT_MAX if position already populated
 __device__ int dvc_get_sum(BoardDevice* B, int x, int y, int target, int* least_neighbor, int* open_neighbors, uint32_t* packed_array) {
 
-    // get the sum of elements surrounding position
-    // returns -1 if position already populated
     int sum = 0;
     int pos_x, pos_y;
     *least_neighbor = MAX_HEIGHT;
@@ -141,28 +141,28 @@ __device__ int dvc_get_sum(BoardDevice* B, int x, int y, int target, int* least_
     for (int i=0; i<B->last_num; i++) {
         get_pos(B, i, &pos_x, &pos_y, packed_array);
         if ((pos_x == x) && (pos_y == y)) {
-            return -1;
+            return INT_MAX;
         }
         if ((x-1 <= pos_x) && (pos_x <= x+1)) {
             if ((y-1 <= pos_y) && (pos_y <= y+1)) {
                 sum += i+2;
                 *least_neighbor = MIN(*least_neighbor, i);
                 *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
-                if (sum > target) return sum;
+                if (sum > target) return INT_MAX;
             }
         }
     }
     for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) {
         get_pos(B, i, &pos_x, &pos_y, packed_array);
         if ((pos_x == x) && (pos_y == y)) {
-            return -1;
+            return INT_MAX;
         }
         if ((x-1 <= pos_x) && (pos_x <= x+1)) {
             if ((y-1 <= pos_y) && (pos_y <= y+1)) {
                 sum += 1;
                 *least_neighbor = MIN(*least_neighbor, i);
                 *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
-                if (sum > target) return sum;
+                if (sum > target) return INT_MAX;
             }
         }
     }
@@ -191,7 +191,7 @@ __device__ bool dvc_look_around(BoardDevice* B, int index, int start_H, int star
                         vop = true;
                         for (int b=0; b<8; b++) {
                             if ((P_bits[P] & (1<<b)) &&
-                                (dvc_get_neighbor(B, new_x+x_around[b], new_y+y_around[b], packed_array) < B->last_num)) {
+                                (dvc_get_anchor(B, new_x+x_around[b], new_y+y_around[b], packed_array) < B->last_num)) {
                                 vop = false;
                                 break;
                             }
@@ -232,7 +232,7 @@ __device__ void dvc_next_board_state(BoardDevice* B, uint32_t* packed_array) {
     while (B->last_num - 1) {  // abort if "3" is removed
         // first find where we left off
         get_pos(B, B->last_num - 1, &old_x, &old_y, packed_array);
-        old_nb = dvc_get_neighbor(B, old_x, old_y, packed_array);
+        old_nb = dvc_get_anchor(B, old_x, old_y, packed_array);
         get_pos(B, old_nb, &nb_x, &nb_y, packed_array);
         last_H = AR_IDX(old_x - nb_x, old_y - nb_y);
         // remove the element and search for new spot
@@ -256,6 +256,7 @@ __device__ void dvc_next_board_state(BoardDevice* B, uint32_t* packed_array) {
 
 // Main kernel for parallel board search
 __global__ void SearchKernel(uint32_t* b_arr, int* cur_max, int num_b) {
+    // asm volatile (".pragma \"enable_smem_spilling\";");
     // assign each thread one board to completely search the state space of
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {
