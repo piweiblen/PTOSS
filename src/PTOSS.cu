@@ -10,6 +10,7 @@
 
 Board computeTermCPU(int N) {
 
+    clock_t tict = clock();
     Board max_board;
     InitBoard(&max_board, N);
     // hardcode result for n=1
@@ -55,6 +56,7 @@ Board computeTermCPU(int N) {
     clock_t toc = clock();
     double split = (double)(toc - tic) / CLOCKS_PER_SEC;
     printf("CPU checked %d unique states in %.3f seconds\n", count, split);
+    printf("total time: %f seconds\n", (double)(toc - tict) / CLOCKS_PER_SEC);
 
     free(search_boards);
 
@@ -63,6 +65,7 @@ Board computeTermCPU(int N) {
 
 Board computeTermGPU(int N) {
 
+    clock_t tict = clock();
     Board max_board;
     InitBoard(&max_board, N);
     // hardcode result for n=1
@@ -73,7 +76,7 @@ Board computeTermGPU(int N) {
 
     // do a breadth first search of boards to generate a pool of boards to search
     // to ensure all boards are searched, depth should be at least N-2 for all N>4 
-    const int depth_chart[8] = {1, 6, 9, 9, 3, 4, 5, 6};
+    const int depth_chart[8] = {1, 6, 9, 12, 6, 4, 5, 6};
     int num_b;
     Board* search_boards;
     gen_boards_to_depth(&search_boards, &num_b, N, depth_chart[N-1]);
@@ -88,6 +91,7 @@ Board computeTermGPU(int N) {
     SearchOnDevice(search_boards, &max_board, num_b);
     clock_t toc = clock();
     printf("GPU time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+    printf("total time: %f seconds\n", (double)(toc - tict) / CLOCKS_PER_SEC);
 
     free(search_boards);
 
