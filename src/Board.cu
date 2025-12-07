@@ -47,8 +47,8 @@ void InitBoard(Board* B, int N) {
 
     // Define initial values
     B->ones_num = N;
-    B->ones_left = N;
-    B->last_num = 0;  // maybe rename this var. this is the next available index in our pos arrays
+    B->ones_down = 0;
+    B->next_idx = 0;
 }
 
 // Copy a host board to a host board
@@ -56,8 +56,8 @@ void CopyHostBoard(Board* Bdest, const Board* Bsrc) {
 
     // Copy scalar values
     Bdest->ones_num = Bsrc->ones_num;
-    Bdest->ones_left = Bsrc->ones_left;
-    Bdest->last_num = Bsrc->last_num;
+    Bdest->ones_down = Bsrc->ones_down;
+    Bdest->next_idx = Bsrc->next_idx;
 
     // Copy position arrays
     memcpy(Bdest->packed_array, Bsrc->packed_array, MAX_HEIGHT * sizeof(uint32_t));
@@ -71,9 +71,9 @@ void flatten_board_list(uint32_t* flat_boards, Board* Boards, int num) {
         elem_idx = 0;
         flat_boards[elem_idx * num + b] = Boards[b].ones_num;
         elem_idx++;
-        flat_boards[elem_idx * num + b] = Boards[b].ones_left;
+        flat_boards[elem_idx * num + b] = Boards[b].ones_down;
         elem_idx++;
-        flat_boards[elem_idx * num + b] = Boards[b].last_num;
+        flat_boards[elem_idx * num + b] = Boards[b].next_idx;
         elem_idx++;
         for (int i=0; i<MAX_HEIGHT; i++) {
             flat_boards[elem_idx * num + b] = Boards[b].packed_array[i];
@@ -90,9 +90,9 @@ void unflatten_board_list(Board* Boards, uint32_t* flat_boards, int num) {
         elem_idx = 0;
         Boards[b].ones_num = flat_boards[elem_idx * num + b];
         elem_idx++;
-        Boards[b].ones_left = flat_boards[elem_idx * num + b];
+        Boards[b].ones_down = flat_boards[elem_idx * num + b];
         elem_idx++;
-        Boards[b].last_num = flat_boards[elem_idx * num + b];
+        Boards[b].next_idx = flat_boards[elem_idx * num + b];
         elem_idx++;
         for (int i=0; i<MAX_HEIGHT; i++) {
             Boards[b].packed_array[i] = flat_boards[elem_idx * num + b];
@@ -103,10 +103,12 @@ void unflatten_board_list(Board* Boards, uint32_t* flat_boards, int num) {
 
 // return whether or not B is a multiboard
 bool is_mub(Board* B) {
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         if (unpack_mub(B->packed_array[i])) {
             return true;
+        }
+        if (unpack_value(B->packed_array[i]) > 8) {
+            return false;
         }
     }
     return false;
@@ -115,13 +117,12 @@ bool is_mub(Board* B) {
 // output one board in a nice grid format
 void pretty_print(Board* B, int mub) {
 
-    int width = floor(log10(MAX(1, abs(B->last_num+1)))) + 2;
+    int width = floor(log10(MAX(1, abs(B->next_idx - B->ones_down + 1)))) + 2;
     int min_x = INT_MAX;
     int max_x = INT_MIN;
     int min_y = INT_MAX;
     int max_y = INT_MIN;
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         uint32_t packed_int = B->packed_array[i];
         if (unpack_mub(packed_int) != mub) continue;
         int pos_x = unpack_pos_x(packed_int);
@@ -132,20 +133,17 @@ void pretty_print(Board* B, int mub) {
         max_y = MAX(max_y, pos_y);
     }
     printf("\n");
-    int d;
     for (int y=min_y; y<=max_y; y++) {
         for (int x=min_x; x<=max_x; x++) {
             bool found = false;
-            for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-                if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+            for (int i=0; i<B->next_idx; i++) {
                 uint32_t packed_int = B->packed_array[i];
                 if (unpack_mub(packed_int) != mub) continue;
                 if ((unpack_pos_x(packed_int) == x) && (unpack_pos_y(packed_int) == y)) {
-                    d = (i >= B->last_num) ? 1 : i + 2;
                     if (found) {  // for debug purposes, make the print messy for overlapping nums
-                        printf("r%d", d);
+                        printf("r%d", unpack_value(packed_int));
                     } else {
-                        printf("%*d", width, d);
+                        printf("%*d", width, unpack_value(packed_int));
                         found = true;
                     }
                 }
@@ -169,58 +167,59 @@ void pretty_print(Board* B) {
 }
 
 // insert an element onto our board
-void insert_element(Board* B, int x, int y, int ones_added) {
+void insert_element(Board* B, int value, int x, int y) {
 
-    B->packed_array[B->last_num] = pack(x, y, ones_added, 0);
-    B->last_num += 1;
+    B->packed_array[B->next_idx] = pack(x, y, value, 0);
+    B->next_idx += 1;
 }
 
 // overload for multiboard
-void insert_element(Board* B, int x, int y, int ones_added, int mub) {
+void insert_element(Board* B, int value, int x, int y, int mub) {
 
-    B->packed_array[B->last_num] = pack(x, y, ones_added, mub);
-    B->last_num += 1;
+    B->packed_array[B->next_idx] = pack(x, y, value, mub);
+    B->next_idx += 1;
 }
 
 // insert a one onto our board
 void insert_one(Board* B, int x, int y) {
 
-    B->packed_array[MAX_HEIGHT-B->ones_left] = pack(x, y, 0, 0);
-    B->ones_left -= 1;
+    B->packed_array[B->next_idx] = pack(x, y, 1, 0);
+    B->next_idx += 1;
+    B->ones_down += 1;
 }
 
 // overload for multiboard
 void insert_one(Board* B, int x, int y, int mub) {
 
-    B->packed_array[MAX_HEIGHT-B->ones_left] = pack(x, y, 0, mub);
-    B->ones_left -= 1;
+    B->packed_array[B->next_idx] = pack(x, y, 1, mub);
+    B->next_idx += 1;
+    B->ones_down += 1;
 }
 
 // remove an element from our board
 void remove_element(Board* B, int* one_positions) {
 
-    uint32_t packed_int = B->packed_array[B->last_num - 1];
-    int otr = unpack_info(packed_int);  // ones to remove
+    uint32_t packed_int = B->packed_array[B->next_idx - 1];
     int x = unpack_pos_x(packed_int);
     int y = unpack_pos_y(packed_int);
+    B->next_idx -= 1;
+    packed_int = B->packed_array[B->next_idx - 1];
     *one_positions = 0;
-    for (int i=MAX_HEIGHT-B->ones_left-otr; i<MAX_HEIGHT-B->ones_left; i++) {
-        packed_int = B->packed_array[i];
+    while (unpack_value(packed_int) == 1) {
         int xi = unpack_pos_x(packed_int);
         int yi = unpack_pos_y(packed_int);
-
         *one_positions |= (1 << AR_IDX(xi - x, yi - y));
+        B->ones_down -= 1;
+        B->next_idx -= 1;
+        packed_int = B->packed_array[B->next_idx - 1];
     }
-    B->ones_left += otr;
-    B->last_num -= 1;
 }
 
 // get the lowest index of neighboring cells of the given position
 int get_anchor(Board* B, int mub, int x, int y) {
 
     int pos_x, pos_y;
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         uint32_t packed_int = B->packed_array[i];
         if (unpack_mub(packed_int) != mub) continue;
         pos_x = unpack_pos_x(packed_int);
@@ -246,10 +245,7 @@ int get_sum(Board* B, int mub, int x, int y, int target, int* anchor, int* open_
     *anchor = MAX_HEIGHT;
     *open_neighbors = 255;
     int sum = 0;
-    int d;
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
-        d = (i >= B->last_num) ? 1 : i + 2;
+    for (int i=0; i<B->next_idx; i++) {
         // Unpack xi and yi
         packed_int = B->packed_array[i];
         if (unpack_mub(packed_int) != mub) continue;
@@ -259,13 +255,13 @@ int get_sum(Board* B, int mub, int x, int y, int target, int* anchor, int* open_
             return INT_MAX;
         }
         if ((x-1 <= xi) && (xi <= x+1) && (y-1 <= yi) && (yi <= y+1)) {
-            sum += d;
+            sum += unpack_value(packed_int);
             *anchor = MIN(*anchor, i);
             *open_neighbors &= ~(1 << AR_IDX(xi - x, yi - y));
             if (sum > target) return INT_MAX;
         }
         if ((x-2 <= xi) && (xi <= x+2) && (y-2 <= yi) && (yi <= y+2)) {
-            if (i < B->last_num) {  // new ones can't be adjacent to old nums
+            if (1 < unpack_value(packed_int)) {  // new ones can't be adjacent to old nums
                 for (int H=0; H<8; H++) { 
                     xii = xi + x_around[H];
                     yii = yi + y_around[H];
@@ -286,23 +282,24 @@ bool look_around(Board* B, int mub, int index, int* start_H, int* start_P) {
     uint32_t packed_int = B->packed_array[index];
     int xi = unpack_pos_x(packed_int);
     int yi = unpack_pos_y(packed_int);
+    int next_num = B->next_idx - B->ones_down + 2;
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
     for (int H=*start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = xi + x_around[H];
         new_y = yi + y_around[H];
-        cur_sum = get_sum(B, mub, new_x, new_y, B->last_num+2, &min_nb, &open_nb);
+        cur_sum = get_sum(B, mub, new_x, new_y, next_num, &min_nb, &open_nb);
         if (min_nb == index) {  // don't go in spots with a lower anchor
-            if (cur_sum <= B->last_num+2) {
-                ones_needed = B->last_num + 2 - cur_sum;
-                if (ones_needed <= MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) {
+            if (cur_sum <= next_num) {
+                ones_needed = next_num - cur_sum;
+                if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
                     for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
-                        insert_element(B, new_x, new_y, ones_needed, mub);
                         for (int b=0; b<8; b++) {
                             if (P_bits[P] & (1<<b))
                                 insert_one(B, new_x+x_around[b], new_y+y_around[b], mub);
                         }
+                        insert_element(B, next_num, new_x, new_y, mub);
                         *start_H = H;
                         *start_P = P;
                         return true;
@@ -328,25 +325,21 @@ bool look_around(Board* B, int index, int start_H, int start_P) {
 void next_board_state(Board* B) {
 
     // first try to add the next number
-    for (int i=0; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
-        if (look_around(B, i, 0, 0)) return;
-    }
-    for (int i=B->last_num - B->ones_num; i<B->last_num; i++) {  // we need to also look around high numbers
-        if (look_around(B, i, 0, 0)) return;
-    }
-    if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-        for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) { 
-            if (look_around(B, i, 0, 0)) return;
+    for (int i=0; i<B->next_idx; i++) {
+        if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[i])) &&
+            (unpack_value(B->packed_array[i]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+            continue;
         }
+        if (look_around(B, i, 0, 0)) return;
     }
 
     // failing to add a number, we'll attempt to move the current highest to a new position
     // continuing to remove elements until we succeed at moving one
     int old_x, old_y;
     int old_nb, last_P, last_H;
-    while (B->last_num - 1) {  // abort if "3" is removed
+    while (B->next_idx >= 3) {  // abort if "3" is removed
         // first find where we left off
-        uint32_t packed_int = B->packed_array[B->last_num - 1];
+        uint32_t packed_int = B->packed_array[B->next_idx - 1];
         old_x = unpack_pos_x(packed_int);
         old_y = unpack_pos_y(packed_int);
         old_nb = get_anchor(B, 0, old_x, old_y);
@@ -358,16 +351,12 @@ void next_board_state(Board* B) {
         // Start with the element it was already around
         if (look_around(B, old_nb, last_H, P_idxs[last_P] + 1)) return;
 
-        for (int i=old_nb+1; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
-            if (look_around(B, i, 0, 0)) return;
-        }
-        for (int i=MAX(old_nb+1, B->last_num - B->ones_num); i<B->last_num; i++) {  // we need to also look around high numbers
-            if (look_around(B, i, 0, 0)) return;
-        }
-        if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-            for (int i=MAX(old_nb+1, MAX_HEIGHT - B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
-                if (look_around(B, i, 0, 0)) return;
+        for (int i=old_nb+1; i<B->next_idx; i++) {
+            if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[i])) &&
+                (unpack_value(B->packed_array[i]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+                continue;
             }
+            if (look_around(B, i, 0, 0)) return;
         }
     }
 }
@@ -377,15 +366,15 @@ void next_board_state(Board* B) {
 // attempt to split board into a multiboard
 bool split_board(Board* B, int* start_P) {
 
-    int ones_needed = B->last_num + 2;
-    if (B->ones_left < ones_needed) return false;
+    int ones_needed = B->next_idx - B->ones_down + 2;
+    if (B->ones_num - B->ones_down < ones_needed) return false;
     // if we have enough ones, we can split
     for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
-        insert_element(B, C_OFF, C_OFF, ones_needed, 1);
         for (int b=0; b<8; b++) {
             if (P_bits[P] & (1<<b)) 
                 insert_one(B, C_OFF+x_around[b], C_OFF+y_around[b]);
         }
+        insert_element(B, ones_needed, C_OFF, C_OFF, 1);
         *start_P = P;
         return true;
     }
@@ -397,8 +386,7 @@ void reorient_mub(Board* B, int mub, int t) {
     uint32_t packed_int;
     int x, y, xt, yt, x_off, y_off;
     bool first_coord = true;
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         packed_int = B->packed_array[i];
         if (unpack_mub(packed_int) != mub) continue;
         x = xt = unpack_pos_x(packed_int);
@@ -418,33 +406,28 @@ void reorient_mub(Board* B, int mub, int t) {
 bool overlay_mub(Board* B, int x_off, int y_off) {
     uint32_t packed_int0, packed_int1;
     int xi, yi, xj, yj;
-    int info;
     // confirm no new adjacencies will be born
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         packed_int0 = B->packed_array[i];
         if (unpack_mub(packed_int0) != 1) continue;
         xi = unpack_pos_x(packed_int0) + x_off;
         yi = unpack_pos_y(packed_int0) + y_off;
-        for (int j=0; j<MAX_HEIGHT-B->ones_left; j++) { 
-            if ((j >= B->last_num) && (j < MAX_HEIGHT-B->ones_num)) continue;
+        for (int j=0; j<B->next_idx; j++) {
             packed_int1 = B->packed_array[j];
             if (unpack_mub(packed_int1) != 0) continue;
             xj = unpack_pos_x(packed_int1);
             yj = unpack_pos_y(packed_int1);
+            if ((unpack_value(packed_int0) == 1) && (unpack_value(packed_int1) == 1))
+                continue;
             if ((-1 <= xi - xj) && (xi - xj <= 1) && (-1 <= yi - yj) && (yi - yj <= 1))
                 return false;
         }
     }
     // all clear to drop it down
-    for (int i=0; i<MAX_HEIGHT-B->ones_left; i++) {
-        if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+    for (int i=0; i<B->next_idx; i++) {
         packed_int0 = B->packed_array[i];
         if (unpack_mub(packed_int0) != 1) continue;
-        xi = unpack_pos_x(packed_int0) + x_off;
-        yi = unpack_pos_y(packed_int0) + y_off;
-        info = unpack_info(packed_int0);
-        B->packed_array[i] = pack(xi, yi, info, 0);
+        B->packed_array[i] = pack_mub(packed_int0, 0);
     }
     return true;
 }
@@ -453,6 +436,7 @@ bool overlay_mub(Board* B, int x_off, int y_off) {
 bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H0, int* start_H1, int* start_P) {
     
     Board* B = (Board*) malloc(sizeof(Board));
+    int target = B->next_idx - B->ones_down + 2;
     uint32_t packed_int0, packed_int1;
     int xi, yi, xj, yj;
     int new_xi, new_yi, new_xj, new_yj;
@@ -463,8 +447,7 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
         memcpy(B, Bin, sizeof(Board));
         reorient_mub(B, 1, t);
         // find our spot in mub 0
-        for (int i=*anc_0; i<MAX_HEIGHT-B->ones_left; i++) {  // anchor index for mub 0
-            if ((i >= B->last_num) && (i < MAX_HEIGHT-B->ones_num)) continue;
+        for (int i=*anc_0; i<B->next_idx; i++) {  // anchor index for mub 0
             packed_int0 = B->packed_array[i];
             if (unpack_mub(packed_int0) != 0) continue;
             xi = unpack_pos_x(packed_int0);
@@ -472,12 +455,11 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
             for (int H0=*start_H0; H0<8; H0++) {
                 new_xi = xi + x_around[H0];
                 new_yi = yi + y_around[H0];
-                cur_sum0 = get_sum(B, 0, new_xi, new_yi, B->last_num+2, &min_nb0, &open_nb0);
+                cur_sum0 = get_sum(B, 0, new_xi, new_yi, target, &min_nb0, &open_nb0);
                 if (min_nb0 != i) continue;  // don't go in spots with a lower anchor
-                if (cur_sum0 > B->last_num+2) continue;
+                if (cur_sum0 > target) continue;
                 // find our spot in mub 1
-                for (int j=*anc_1; j<MAX_HEIGHT-B->ones_left; j++) {  // anchor index for mub 1
-                    if ((j >= B->last_num) && (j < MAX_HEIGHT-B->ones_num)) continue;
+                for (int j=*anc_1; j<B->next_idx; j++) {  // anchor index for mub 1
                     packed_int1 = B->packed_array[j];
                     if (unpack_mub(packed_int1) != 1) continue;
                     xj = unpack_pos_x(packed_int1);
@@ -485,20 +467,21 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                     for (int H1=*start_H1; H1<8; H1++) {
                         new_xj = xj + x_around[H1];
                         new_yj = yj + y_around[H1];
-                        cur_sum1 = get_sum(B, 1, new_xj, new_yj, B->last_num+2-cur_sum0, &min_nb1, &open_nb1);
+                        cur_sum1 = get_sum(B, 1, new_xj, new_yj, target-cur_sum0, &min_nb1, &open_nb1);
                         if (min_nb1 != j) continue;  // don't go in spots with a lower anchor
-                        if (cur_sum1 > B->last_num+2-cur_sum0) continue;
+                        if (cur_sum1 > target-cur_sum0) continue;
                         // if we get this far, the sums work out
-                        ones_needed = B->last_num + 2 - cur_sum0 - cur_sum1;
+                        ones_needed = target - cur_sum0 - cur_sum1;
                         open_nb = open_nb0 & open_nb1;
-                        if (ones_needed > MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) continue;
+                        if (ones_needed > MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]]))
+                            continue;
                         // if we get this far, the ones work out
                         if (!overlay_mub(B, new_xi - new_xj, new_yi - new_yj)) continue;
                         // with the boards overlayed, the rest is the same as in look_around
                         // validate that the one positions aren't adjacent to other numbers
                         for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                             if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
-                            insert_element(B, new_xi, new_yi, ones_needed);
+                            insert_element(B, target, new_xi, new_yi);
                             for (int b=0; b<8; b++) {
                                 if (P_bits[P] & (1<<b))
                                     insert_one(B, new_xi+x_around[b], new_yi+y_around[b]);
@@ -516,10 +499,15 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                         // if we get here there were no valid Ps left, but we already overlayed
                         memcpy(B, Bin, sizeof(Board));
                         reorient_mub(B, 1, t);
+                        *start_P = 0;
                     }
+                    *start_H1 = 0;
                 }
+                *anc_1 = 0;
             }
+            *start_H0 = 0;
         }
+        *anc_0 = 0;
     }
     free(B);
     return false;
@@ -530,10 +518,10 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
 // Determine if two boards are equivalent up to reflection/rotation
 bool equivalent(Board* B1, Board* B2, int mub) {
 
-    // Check if the parameters of the boards are equal - if not, then they're not equivalent
+    // Check if the parameters of the boards are equal
     if (B1->ones_num != B2->ones_num) return false;
-    if (B1->ones_left != B2->ones_left) return false;
-    if (B1->last_num != B2->last_num) return false;
+    if (B1->ones_down != B2->ones_down) return false;
+    if (B1->next_idx != B2->next_idx) return false;
 
     // Check all transforms of the arrays to see if any match up
     bool valid, first_coord;
@@ -544,11 +532,15 @@ bool equivalent(Board* B1, Board* B2, int mub) {
         valid = true;
         first_coord = true;
         // check that all numbers align
-        for (int i = 0; i < B1->last_num; i++) {
+        for (int i = 0; i < B1->next_idx; i++) {
             B1_packed_int = B1->packed_array[i];
             B2_packed_int = B2->packed_array[i];
+            if (unpack_value(B1_packed_int) != unpack_value(B2_packed_int))
+                return false;
             if (unpack_mub(B1_packed_int) != unpack_mub(B2_packed_int))
                 return false;
+            if (unpack_value(B1_packed_int) == 1)
+                continue;
             if (unpack_mub(B1_packed_int) != mub)
                 continue;
             x1 = unpack_pos_x(B1_packed_int);
@@ -569,13 +561,15 @@ bool equivalent(Board* B1, Board* B2, int mub) {
         }
         if (!valid) continue;
         // check that all ones align
-        for (int i = MAX_HEIGHT-B1->ones_num; i < MAX_HEIGHT-B1->ones_left; i++) {
+        for (int i = 0; i < B1->next_idx; i++) {
+            B1_packed_int = B1->packed_array[i];
+            if (unpack_value(B1_packed_int) != 1) continue;
+            x1 = unpack_pos_x(B1_packed_int);
+            y1 = unpack_pos_y(B1_packed_int);
             valid = false;
-            for (int j = MAX_HEIGHT-B2->ones_num; j < MAX_HEIGHT-B2->ones_left; j++) {
-                B1_packed_int = B1->packed_array[i];
+            for (int j = 0; j < B1->next_idx; j++) {
                 B2_packed_int = B2->packed_array[j];
-                x1 = unpack_pos_x(B1_packed_int);
-                y1 = unpack_pos_y(B1_packed_int);
+                if (unpack_value(B2_packed_int) != 1) continue;
                 x2 = unpack_pos_x(B2_packed_int);
                 y2 = unpack_pos_y(B2_packed_int);
                 transform(&x2, &y2, t);
@@ -646,11 +640,12 @@ void gen_all_next_boards(Board** boards, int* num_b) {
     for (int i=0; i<*num_b; i++) {  // loop over all boards
         B = (*boards) + i;
         dedup_idx = cur_idx;
-        for (int j=0; j<MAX_HEIGHT-B->ones_left; j++) {  // loop over all possible anchors for the next number
+        for (int j=0; j<B->next_idx; j++) {  // loop over all possible anchors for the next number
             // filter out impossible anchors
-            if ((j >= B->last_num / 2) && (j < B->last_num - B->ones_num)) continue;
-            if ((j >= B->last_num) && (j < MAX_HEIGHT-B->ones_num)) continue;
-            if ((B->last_num+2 > 8) && (j >= B->last_num)) continue;
+            if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[j])) &&
+                (unpack_value(B->packed_array[j]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+                continue;
+            }
             start_H = 0;
             start_P = 0;
             while (true) {  // loop over all possible positions/one placements

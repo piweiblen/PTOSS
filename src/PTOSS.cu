@@ -21,10 +21,9 @@ Board computeTermCPU(int N) {
     // set up starting boards
     int num_b = 6;
     Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
-    // here is all possible ways to place the first 2 hardcoded
+    // start with all possible ways to place the first 2
     for (int i=0; i<num_b; i++) {
         InitBoard(&search_boards[i], N);
-        insert_element(&search_boards[i], C_OFF, C_OFF, 2);
     }
     insert_one(&search_boards[0], C_OFF-1, C_OFF-1);
     insert_one(&search_boards[0], C_OFF+1, C_OFF+1);
@@ -38,6 +37,9 @@ Board computeTermCPU(int N) {
     insert_one(&search_boards[4], C_OFF+1, C_OFF);
     insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
     insert_one(&search_boards[5], C_OFF+1, C_OFF);
+    for (int i=0; i<num_b; i++) {
+        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
+    }
 
     // get the 3s placed so we have convenient anchor points to check against
     const int depth_chart[8] = {1, 4, 4, 4, 3, 3, 3, 3};
@@ -59,14 +61,15 @@ Board computeTermCPU(int N) {
     int anchor_idx, anchor_x, anchor_y;
     for (int i=0; i<num_b; i++) {
         B = search_boards + i;
-        anchor_idx = B->last_num - 1;
+        anchor_idx = B->next_idx - 1;
         packed_int = B->packed_array[anchor_idx];
         anchor_x = unpack_pos_x(packed_int);
         anchor_y = unpack_pos_y(packed_int);
         while ((anchor_x == unpack_pos_x(B->packed_array[anchor_idx])) && (anchor_y == unpack_pos_y(B->packed_array[anchor_idx]))) {
             next_board_state(B);
-            if (max_found < B->last_num) {
-                max_found = B->last_num;
+            if (anchor_idx > B->next_idx - 1) break;
+            if (max_found < B->next_idx) {
+                max_found = B->next_idx;
                 CopyHostBoard(&max_board, B);
             }
             count += 1;
@@ -94,10 +97,10 @@ Board computeTermGPU(int N) {
     // set up starting boards
     int num_b = 6;
     Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
-    // here is all possible ways to place the first 2 hardcoded
+    // start with all possible ways to place the first 2
     for (int i=0; i<num_b; i++) {
         InitBoard(&search_boards[i], N);
-        insert_element(&search_boards[i], C_OFF, C_OFF, 2);
+        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
     }
     insert_one(&search_boards[0], C_OFF-1, C_OFF-1);
     insert_one(&search_boards[0], C_OFF+1, C_OFF+1);
@@ -149,7 +152,7 @@ int main(int argc, char** argv) {
         printf("  PTOSS CPU [N<=4]      find optimal board for N ones using the CPU\n");
         return 0;
     }
-    printf("final board (%d):\n", max_board.last_num+1);
+    printf("final board (%d):\n", max_board.next_idx - max_board.ones_down + 1);
     pretty_print(&max_board);
     return 0;
 }
