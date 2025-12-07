@@ -23,9 +23,7 @@ void pretty_print(Board* B);
 void insert_element(Board* B, int x, int y, int ones_added);
 void insert_one(Board* B, int x, int y);
 void next_board_state(Board* B);
-bool equivalent(Board* B1, Board* B2);
-void remove_duplicates(Board** boards, int* num_b, bool realloc_arr);
-void gen_all_next_boards(Board** boards, int* num_b);
+void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int depth);
 
 // Pack a pos_x, pos_y, vlue and mub into a single uint32_t
 __host__ __device__ inline uint32_t pack(int pos_x, int pos_y, int info, int mub) {

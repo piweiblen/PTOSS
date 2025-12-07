@@ -18,35 +18,12 @@ Board computeTermCPU(int N) {
         return max_board;
     }
 
-    // set up starting boards
-    int num_b = 6;
-    Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
-    // start with all possible ways to place the first 2
-    for (int i=0; i<num_b; i++) {
-        InitBoard(&search_boards[i], N);
-    }
-    insert_one(&search_boards[0], C_OFF-1, C_OFF-1);
-    insert_one(&search_boards[0], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[1], C_OFF-1, C_OFF);
-    insert_one(&search_boards[1], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[2], C_OFF-1, C_OFF+1);
-    insert_one(&search_boards[2], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[3], C_OFF-1, C_OFF);
-    insert_one(&search_boards[3], C_OFF+1, C_OFF);
-    insert_one(&search_boards[4], C_OFF, C_OFF+1);
-    insert_one(&search_boards[4], C_OFF+1, C_OFF);
-    insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[5], C_OFF+1, C_OFF);
-    for (int i=0; i<num_b; i++) {
-        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
-    }
-
-    // get the 3s placed so we have convenient anchor points to check against
-    const int depth_chart[8] = {1, 4, 4, 4, 3, 3, 3, 3};
-    for (int depth=2; depth<depth_chart[N-1]; depth++) {
-        gen_all_next_boards(&search_boards, &num_b);
-        printf("generated %d boards at depth %d...\n", num_b, depth+1);
-    }
+    // do a breadth first search of boards to generate a pool of boards to search
+    // to ensure all boards are searched, depth should be at least N-2 for all N>4 
+    const int depth_chart[8] = {1, 4, 4, 4, 4, 4, 5, 6};
+    int num_b;
+    Board* search_boards;
+    gen_boards_to_depth(&search_boards, &num_b, N, depth_chart[N-1]);
     printf("searching %d boards...\n", num_b);
     // for (int i=0; i<num_b; i++) {
     //     pretty_print(&search_boards[i]);
@@ -94,35 +71,12 @@ Board computeTermGPU(int N) {
         return max_board;
     }
 
-    // set up starting boards
-    int num_b = 6;
-    Board* search_boards = (Board *) malloc(num_b * sizeof(Board));
-    // start with all possible ways to place the first 2
-    for (int i=0; i<num_b; i++) {
-        InitBoard(&search_boards[i], N);
-    }
-    insert_one(&search_boards[0], C_OFF-1, C_OFF-1);
-    insert_one(&search_boards[0], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[1], C_OFF-1, C_OFF);
-    insert_one(&search_boards[1], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[2], C_OFF-1, C_OFF+1);
-    insert_one(&search_boards[2], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[3], C_OFF-1, C_OFF);
-    insert_one(&search_boards[3], C_OFF+1, C_OFF);
-    insert_one(&search_boards[4], C_OFF, C_OFF+1);
-    insert_one(&search_boards[4], C_OFF+1, C_OFF);
-    insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
-    insert_one(&search_boards[5], C_OFF+1, C_OFF);
-    for (int i=0; i<num_b; i++) {
-        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
-    }
-
-    // do a breadth first search of boards until we have sufficiently many
-    const int depth_chart[8] = {1, 6, 9, 9, 5, 6, 7, 8};
-    for (int depth=2; depth<depth_chart[N-1]; depth++) {
-        gen_all_next_boards(&search_boards, &num_b);
-        printf("generated %d boards at depth %d...\n", num_b, depth+1);
-    }
+    // do a breadth first search of boards to generate a pool of boards to search
+    // to ensure all boards are searched, depth should be at least N-2 for all N>4 
+    const int depth_chart[8] = {1, 6, 9, 9, 3, 4, 5, 6};
+    int num_b;
+    Board* search_boards;
+    gen_boards_to_depth(&search_boards, &num_b, N, depth_chart[N-1]);
     printf("searching %d boards on the GPU...\n", num_b);
     // printf("search boards:\n");
     // for (int i=0; i<num_b; i++) {

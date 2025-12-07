@@ -277,11 +277,12 @@ int get_sum(Board* B, int mub, int x, int y, int target, int* anchor, int* open_
 }
 
 // check around the location of a particular index for a spot to place the next element
-bool look_around(Board* B, int mub, int index, int* start_H, int* start_P) {
+bool look_around(Board* B, int index, int* start_H, int* start_P) {
 
     uint32_t packed_int = B->packed_array[index];
     int xi = unpack_pos_x(packed_int);
     int yi = unpack_pos_y(packed_int);
+    int mub = unpack_mub(packed_int);
     int next_num = B->next_idx - B->ones_down + 2;
     int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
@@ -317,7 +318,7 @@ bool look_around(Board* B, int index, int start_H, int start_P) {
 
     int idc_H = start_H;
     int idc_P = start_P;
-    return look_around(B, 0, index, &idc_H, &idc_P);
+    return look_around(B, index, &idc_H, &idc_P);
 }
 
 // iterate a board to its next state i.e. the next position in the search
@@ -372,7 +373,7 @@ bool split_board(Board* B, int* start_P) {
     for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
         for (int b=0; b<8; b++) {
             if (P_bits[P] & (1<<b)) 
-                insert_one(B, C_OFF+x_around[b], C_OFF+y_around[b]);
+                insert_one(B, C_OFF+x_around[b], C_OFF+y_around[b], 1);
         }
         insert_element(B, ones_needed, C_OFF, C_OFF, 1);
         *start_P = P;
@@ -436,7 +437,7 @@ bool overlay_mub(Board* B, int x_off, int y_off) {
 bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H0, int* start_H1, int* start_P) {
     
     Board* B = (Board*) malloc(sizeof(Board));
-    int target = B->next_idx - B->ones_down + 2;
+    int target = Bin->next_idx - Bin->ones_down + 2;
     uint32_t packed_int0, packed_int1;
     int xi, yi, xj, yj;
     int new_xi, new_yi, new_xj, new_yj;
@@ -564,12 +565,14 @@ bool equivalent(Board* B1, Board* B2, int mub) {
         for (int i = 0; i < B1->next_idx; i++) {
             B1_packed_int = B1->packed_array[i];
             if (unpack_value(B1_packed_int) != 1) continue;
+            if (unpack_mub(B1_packed_int) != mub) continue;
             x1 = unpack_pos_x(B1_packed_int);
             y1 = unpack_pos_y(B1_packed_int);
             valid = false;
             for (int j = 0; j < B1->next_idx; j++) {
                 B2_packed_int = B2->packed_array[j];
                 if (unpack_value(B2_packed_int) != 1) continue;
+                if (unpack_mub(B2_packed_int) != mub) continue;
                 x2 = unpack_pos_x(B2_packed_int);
                 y2 = unpack_pos_y(B2_packed_int);
                 transform(&x2, &y2, t);
@@ -602,15 +605,16 @@ bool equivalent(Board* B1, Board* B2) {
 }
 
 // Give an array of boards, remove all boards which are duplicates
-void remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
+bool remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
     
+    bool any = false;
     // Loop through all pairs of boards
     for (int b1 = 0; b1 < *num_b-1; b1++) {
         for (int b2 = b1+1; b2 < *num_b; b2++) {
 
             // If the two boards are equivalent, remove the second board
             if (equivalent(*boards + b1, *boards + b2)) {
-
+                any = true;
                 // Loop through all following boards and shift them left
                 for (int b = b2; b < *num_b-1; b++) {
                     CopyHostBoard(*boards + b, *boards + b + 1);
@@ -625,18 +629,59 @@ void remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
     if (realloc_arr) {
         *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
     }
+    return any;
+}
+
+// set up starting boards, all possible ways to place the first 2
+// inputs should be empty pointers for storing results
+void gen_first_boards(Board** boards, int* num_b, const int N) {
+
+    Board* B;
+    *num_b = 6;
+    *boards = (Board *) malloc((*num_b) * sizeof(Board));
+    for (int i=0; i<*num_b; i++) {
+        B = (*boards) + i;
+        InitBoard(B, N);
+    }
+    B = (*boards) + 0;
+    insert_one(B, C_OFF-1, C_OFF-1);
+    insert_one(B, C_OFF+1, C_OFF+1);
+    B = (*boards) + 1;
+    insert_one(B, C_OFF-1, C_OFF);
+    insert_one(B, C_OFF+1, C_OFF+1);
+    B = (*boards) + 2;
+    insert_one(B, C_OFF-1, C_OFF+1);
+    insert_one(B, C_OFF+1, C_OFF+1);
+    B = (*boards) + 3;
+    insert_one(B, C_OFF-1, C_OFF);
+    insert_one(B, C_OFF+1, C_OFF);
+    B = (*boards) + 4;
+    insert_one(B, C_OFF, C_OFF+1);
+    insert_one(B, C_OFF+1, C_OFF);
+    B = (*boards) + 5;
+    insert_one(B, C_OFF+1, C_OFF+1);
+    insert_one(B, C_OFF+1, C_OFF);
+    for (int i=0; i<*num_b; i++) {
+        B = (*boards) + i;
+        insert_element(B, 2, C_OFF, C_OFF);
+    }
 }
 
 // given an array of boards generate all possible boards which can be made by adding an element
-void gen_all_next_boards(Board** boards, int* num_b) {
+void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* num_mub, bool* any_dedup) {
     
-    int new_num_b = 16;
-    Board* new_boards = (Board *) malloc(new_num_b * sizeof(Board));
+    int default_nb = 16;
     int cur_idx = 0;
+    Board* B;
     int dedup_idx, dedup_num;
+    bool new_any_dedup = false;
     Board** dedup_ptr = (Board **) malloc(sizeof(*dedup_ptr));
     int start_H, start_P;
-    Board* B;
+
+    // start with boards -> boards
+    int new_num_bb = default_nb;
+    Board* new_bds_bb = (Board *) malloc(new_num_bb * sizeof(Board));
+    cur_idx = 0;
     for (int i=0; i<*num_b; i++) {  // loop over all boards
         B = (*boards) + i;
         dedup_idx = cur_idx;
@@ -650,13 +695,13 @@ void gen_all_next_boards(Board** boards, int* num_b) {
             start_P = 0;
             while (true) {  // loop over all possible positions/one placements
                 // set up next board in the array
-                if (cur_idx >= new_num_b) {
-                    new_num_b *= 2;
-                    new_boards = (Board *) realloc(new_boards, new_num_b * sizeof(Board));
+                if (cur_idx >= new_num_bb) {
+                    new_num_bb = MIN(2 * new_num_bb, new_num_bb + 1000000);
+                    new_bds_bb = (Board *) realloc(new_bds_bb, new_num_bb * sizeof(Board));
                 }
-                CopyHostBoard(&new_boards[cur_idx], B);
+                CopyHostBoard(&new_bds_bb[cur_idx], B);
 
-                if (look_around(&new_boards[cur_idx], 0, j, &start_H, &start_P)) {
+                if (look_around(&new_bds_bb[cur_idx], j, &start_H, &start_P)) {
                     start_P++;
                     cur_idx++;
                 } else {
@@ -664,15 +709,197 @@ void gen_all_next_boards(Board** boards, int* num_b) {
                 }
             }
         }
-        // deduplicate generated boards
-        dedup_num = cur_idx - dedup_idx;
-        *dedup_ptr = new_boards + dedup_idx;
-        remove_duplicates(dedup_ptr, &dedup_num, false);
-        cur_idx = dedup_idx + dedup_num;
+        if (any_dedup) {
+            // deduplicate generated boards
+            dedup_num = cur_idx - dedup_idx;
+            *dedup_ptr = new_bds_bb + dedup_idx;
+            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            cur_idx = dedup_idx + dedup_num;
+        }
     }
-    *boards = (Board *) realloc(*boards, cur_idx * sizeof(Board));
-    memcpy(*boards, new_boards, cur_idx * sizeof(Board));
+    new_num_bb = cur_idx;
+
+    // next boards -> muliboards
+    int new_num_bm = default_nb;
+    Board* new_bds_bm = (Board *) malloc(new_num_bm * sizeof(Board));
+    cur_idx = 0;
+    for (int i=0; i<*num_b; i++) {  // loop over all boards
+        B = (*boards) + i;
+        dedup_idx = cur_idx;
+        for (int j=0; j<B->next_idx; j++) {  // loop over all possible anchors for the next number
+            // filter out impossible anchors
+            if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[j])) &&
+                (unpack_value(B->packed_array[j]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+                continue;
+            }
+            start_P = 0;
+            while (true) {  // loop over all possible one placements
+                // set up next board in the array
+                if (cur_idx >= new_num_bm) {
+                    new_num_bm = MIN(2 * new_num_bm, new_num_bm + 1000000);
+                    new_bds_bm = (Board *) realloc(new_bds_bm, new_num_bm * sizeof(Board));
+                }
+                CopyHostBoard(&new_bds_bm[cur_idx], B);
+
+                if (split_board(&new_bds_bm[cur_idx], &start_P)) {
+                    start_P++;
+                    cur_idx++;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (any_dedup) {
+            // deduplicate generated boards
+            dedup_num = cur_idx - dedup_idx;
+            *dedup_ptr = new_bds_bm + dedup_idx;
+            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            cur_idx = dedup_idx + dedup_num;
+        }
+    }
+    new_num_bm = cur_idx;
+
+    // next muliboards -> boards
+    int start_tr, anc_0, anc_1, start_H0, start_H1;
+    int new_num_mb = default_nb;
+    Board* new_bds_mb = (Board *) malloc(new_num_mb * sizeof(Board));
+    cur_idx = 0;
+    for (int i=0; i<*num_mub; i++) {  // loop over all boards
+        B = (*multiboards) + i;
+        dedup_idx = cur_idx;
+        for (int j=0; j<B->next_idx; j++) {  // loop over all possible anchors for the next number
+            // filter out impossible anchors
+            if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[j])) &&
+                (unpack_value(B->packed_array[j]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+                continue;
+            }
+            start_tr = anc_0 = anc_1 = start_H0 = start_H1 = start_P = 0;
+            while (true) {  // loop over all possible one placements
+                // set up next board in the array
+                if (cur_idx >= new_num_mb) {
+                    new_num_mb = MIN(2 * new_num_mb, new_num_mb + 1000000);
+                    new_bds_mb = (Board *) realloc(new_bds_mb, new_num_mb * sizeof(Board));
+                }
+                CopyHostBoard(&new_bds_mb[cur_idx], B);
+
+                if (merge_board(&new_bds_mb[cur_idx], &start_tr, &anc_0, &anc_1, &start_H0, &start_H1, &start_P)) {;
+                    start_P++;
+                    cur_idx++;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (any_dedup) {
+            // deduplicate generated boards
+            dedup_num = cur_idx - dedup_idx;
+            *dedup_ptr = new_bds_mb + dedup_idx;
+            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            cur_idx = dedup_idx + dedup_num;
+        }
+    }
+    new_num_mb = cur_idx;
+
+    // finally muliboards -> muliboards
+    int new_num_mm = default_nb;
+    Board* new_bds_mm = (Board *) malloc(new_num_mm * sizeof(Board));
+    cur_idx = 0;
+    for (int i=0; i<*num_mub; i++) {  // loop over all boards
+        B = (*multiboards) + i;
+        dedup_idx = cur_idx;
+        for (int j=0; j<B->next_idx; j++) {  // loop over all possible anchors for the next number
+            // filter out impossible anchors
+            if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(B->packed_array[j])) &&
+                (unpack_value(B->packed_array[j]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+                continue;
+            }
+            start_H = 0;
+            start_P = 0;
+            while (true) {  // loop over all possible positions/one placements
+                // set up next board in the array
+                if (cur_idx >= new_num_mm) {
+                    new_num_mm = MIN(2 * new_num_mm, new_num_mm + 1000000);
+                    new_bds_mm = (Board *) realloc(new_bds_mm, new_num_mm * sizeof(Board));
+                }
+                CopyHostBoard(&new_bds_mm[cur_idx], B);
+
+                if (look_around(&new_bds_mm[cur_idx], j, &start_H, &start_P)) {
+                    start_P++;
+                    cur_idx++;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (any_dedup) {
+            // deduplicate generated boards
+            dedup_num = cur_idx - dedup_idx;
+            *dedup_ptr = new_bds_mm + dedup_idx;
+            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            cur_idx = dedup_idx + dedup_num;
+        }
+    }
+    new_num_mm = cur_idx;
+
+    // transfer generated boards to the output
+    *any_dedup = new_any_dedup;
+    *num_b = new_num_bb + new_num_mb;
+    *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
+    *num_mub = new_num_bm + new_num_mm;
+    *multiboards = (Board *) realloc(*multiboards, (*num_mub) * sizeof(Board));
+    memcpy(*boards, new_bds_bb, new_num_bb * sizeof(Board));
+    memcpy((*boards)+new_num_bb, new_bds_mb, new_num_mb * sizeof(Board));
+    memcpy(*multiboards, new_bds_bm, new_num_bm * sizeof(Board));
+    memcpy((*multiboards)+new_num_bm, new_bds_mm, new_num_mm * sizeof(Board));
+    // clean up
     free(dedup_ptr);
-    free(new_boards);
-    *num_b = cur_idx;
+    free(new_bds_bb);
+    free(new_bds_bm);
+    free(new_bds_mb);
+    free(new_bds_mm);
+}
+
+// find all boards up to a certain depth, and merge any remaining multiboards
+// first two inputs should be empty pointers for storing results
+void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int depth) {
+
+    // start with our hardcoded depth two
+    int cur_depth = 2;
+    gen_first_boards(boards, num_b, N);
+    bool any_dedup = true;
+
+    // then generate up to the desired depth
+    int num_mub = 0;
+    Board* new_mubs = (Board *) malloc(sizeof(Board));
+    while (cur_depth < depth) {
+        cur_depth++;
+        gen_all_next_boards(boards, num_b, &new_mubs, &num_mub, &any_dedup);
+        if (num_mub) {
+            printf("generated %d boards and %d multiboards at depth %d...\n",
+                   *num_b, num_mub, cur_depth);
+        } else {
+            printf("generated %d boards at depth %d...\n", *num_b, cur_depth);
+        }
+    }
+
+    // then keep iterating on the multiboards until they are all merged or gone
+    if (num_mub) {
+        printf("cleaning up %d multiboards...\n", num_mub);
+        int new_num = 0;
+        Board* new_boards = (Board *) malloc(sizeof(Board));
+        while (num_mub) {
+            cur_depth++;
+            gen_all_next_boards(&new_boards, &new_num, &new_mubs, &num_mub, &any_dedup);
+            *boards = (Board *) realloc(*boards, (*num_b + new_num) * sizeof(Board));
+            for (int i=0; i<new_num; i++) {
+                CopyHostBoard((*boards) + (*num_b) + i, new_boards + i);
+            }
+            printf("added %d boards, now %d multiboards remaining at depth %d...\n",
+                   new_num, num_mub, cur_depth);
+            *num_b += new_num;
+            new_num = 0;
+        }
+        free(new_boards);
+    }
+    free(new_mubs);
 }
