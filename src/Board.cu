@@ -337,7 +337,7 @@ void next_board_state(Board* B) {
     // continuing to remove elements until we succeed at moving one
     int old_x, old_y;
     int old_nb, last_P, last_H;
-    while (B->next_idx >= 3) {  // abort if "3" is removed
+    while (B->next_idx > 3) {  // abort if "3" is removed
         // first find where we left off
         uint32_t packed_int = B->packed_array[B->next_idx - 1];
         old_x = unpack_pos_x(packed_int);
@@ -448,11 +448,13 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
         reorient_mub(B, 1, t);
         // find our spot in mub 0
         for (int i=*anc_0; i<B->next_idx; i++) {  // anchor index for mub 0
+            *anc_0 = 0;
             packed_int0 = B->packed_array[i];
             if (unpack_mub(packed_int0) != 0) continue;
             xi = unpack_pos_x(packed_int0);
             yi = unpack_pos_y(packed_int0);
             for (int H0=*start_H0; H0<8; H0++) {
+                *start_H0 = 0;
                 new_xi = xi + x_around[H0];
                 new_yi = yi + y_around[H0];
                 cur_sum0 = get_sum(B, 0, new_xi, new_yi, target, &min_nb0, &open_nb0);
@@ -460,11 +462,13 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                 if (cur_sum0 > target) continue;
                 // find our spot in mub 1
                 for (int j=*anc_1; j<B->next_idx; j++) {  // anchor index for mub 1
+                    *anc_1 = 0;
                     packed_int1 = B->packed_array[j];
                     if (unpack_mub(packed_int1) != 1) continue;
                     xj = unpack_pos_x(packed_int1);
                     yj = unpack_pos_y(packed_int1);
                     for (int H1=*start_H1; H1<8; H1++) {
+                        *start_H1 = 0;
                         new_xj = xj + x_around[H1];
                         new_yj = yj + y_around[H1];
                         cur_sum1 = get_sum(B, 1, new_xj, new_yj, target-cur_sum0, &min_nb1, &open_nb1);
@@ -501,13 +505,9 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                         reorient_mub(B, 1, t);
                         *start_P = 0;
                     }
-                    *start_H1 = 0;
                 }
-                *anc_1 = 0;
             }
-            *start_H0 = 0;
         }
-        *anc_0 = 0;
     }
     free(B);
     return false;
