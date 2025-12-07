@@ -20,8 +20,8 @@ __constant__ int P_wieght[256] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2
 
 struct BoardDevice {
     int ones_num;  // total number of ones available to the grid
-    int ones_left;  // number of ones available to place in the grid
-    int last_num;  // highest number currently placed in the grid
+    int ones_down;  // number of ones available to place in the grid
+    int next_idx;  // highest number currently placed in the grid
 };
 
 __device__ __forceinline__ uint32_t get_elem(uint32_t* b_arr, int b_idx, int num_b, int elem_idx) {
@@ -32,175 +32,152 @@ __device__ __forceinline__ void set_elem(uint32_t* b_arr, int b_idx, int num_b, 
     b_arr[elem_idx * num_b + b_idx] = elem;
 }
 
-// __device__ __forceinline__ Board get_board_from_flat(uint32_t* b_arr, int b_idx, int num_b, uint32_t* packed_array) {
-//     Board new_board;
-//     new_board.ones_num = get_elem(b_arr, b_idx, num_b, 0);
-//     new_board.ones_left = get_elem(b_arr, b_idx, num_b, 1);
-//     new_board.last_num = get_elem(b_arr, b_idx, num_b, 2);
-//     #pragma unroll
-//     for (int i=0; i<MAX_HEIGHT; i++) {
-//         packed_array[i] = get_elem(b_arr, b_idx, num_b, 3+i);
-//     }
-//     return new_board;
-// }
+__device__ __forceinline__ void get_board_from_flat(BoardDevice* B, uint32_t* packed_array, uint32_t* b_arr, int b_idx, int num_b) {
+    B->ones_num = get_elem(b_arr, b_idx, num_b, 0);
+    B->ones_down = get_elem(b_arr, b_idx, num_b, 1);
+    B->next_idx = get_elem(b_arr, b_idx, num_b, 2);
+    #pragma unroll
+    for (int i=0; i<MAX_HEIGHT; i++) {
+        packed_array[i] = get_elem(b_arr, b_idx, num_b, 3+i);
+    }
+}
 
 __device__ void set_board_in_flat(uint32_t* b_arr, int b_idx, int num_b, const BoardDevice* B, uint32_t* packed_array) {
     set_elem(b_arr, b_idx, num_b, 0, B->ones_num);
-    set_elem(b_arr, b_idx, num_b, 1, B->ones_left);
-    set_elem(b_arr, b_idx, num_b, 2, B->last_num);
+    set_elem(b_arr, b_idx, num_b, 1, B->ones_down);
+    set_elem(b_arr, b_idx, num_b, 2, B->next_idx);
     #pragma unroll
     for (int i=0; i<MAX_HEIGHT; i++) {
         set_elem(b_arr, b_idx, num_b, 3+i, packed_array[i]);
     }
 }
 
-__device__ __forceinline__ int get_info(BoardDevice* B, int arr_idx, uint32_t* packed_array) {
-    return unpack_info(packed_array[arr_idx]);
-}
-
-__device__ __forceinline__ void get_pos(BoardDevice* B, int arr_idx, int* x, int* y, uint32_t* packed_array) {
+__device__ __forceinline__ void get_pos(BoardDevice* B, uint32_t* packed_array, int arr_idx, int* x, int* y) {
     uint32_t packed_int = packed_array[arr_idx];
     *x = unpack_pos_x(packed_int);
     *y = unpack_pos_y(packed_int);
-}
-
-__device__ __forceinline__ void get_pos_info(BoardDevice* B, int arr_idx, int* x, int* y, int* info, uint32_t* packed_array) {
-    uint32_t packed_int = packed_array[arr_idx];
-    *x = unpack_pos_x(packed_int);
-    *y = unpack_pos_y(packed_int);
-    *info = unpack_info(packed_int);
 }
 
 // these are ports(ish) of the functions in Board.cu
-__device__ __forceinline__ void dvc_insert_element(BoardDevice* B, int x, int y, int ones_added, uint32_t* packed_array) {
+__device__ __forceinline__ void dvc_insert_element(BoardDevice* B, uint32_t* packed_array, int value, int x, int y) {
 
     // insert an element onto our board
-    packed_array[B->last_num] = pack(x, y, ones_added, 0);
-    B->last_num += 1;
+    packed_array[B->next_idx] = pack(x, y, value, 0);
+    B->next_idx += 1;
 }
 
-__device__ __forceinline__ void dvc_insert_one(BoardDevice* B, int x, int y, uint32_t* packed_array) {
+__device__ __forceinline__ void dvc_insert_one(BoardDevice* B, uint32_t* packed_array, int x, int y) {
 
     // insert a one onto our board
-    packed_array[MAX_HEIGHT-B->ones_left] = pack(x, y, 0, 0);
-    B->ones_left -= 1;
+    packed_array[B->next_idx] = pack(x, y, 1, 0);
+    B->next_idx += 1;
+    B->ones_down += 1;
 }
 
-__device__ void dvc_remove_element(BoardDevice* B, int* one_positions, uint32_t* packed_array) {
+__device__ void dvc_remove_element(BoardDevice* B, uint32_t* packed_array, int* one_positions) {
 
     // remove an element from our board
-    int x, y, otr;
-    get_pos_info(B, B->last_num - 1, &x, &y, &otr, packed_array);
+    int x = unpack_pos_x(packed_array[B->next_idx - 1]);
+    int y = unpack_pos_y(packed_array[B->next_idx - 1]);
+    B->next_idx -= 1;
     *one_positions = 0;
-    for (int i=MAX_HEIGHT-B->ones_left-otr; i<MAX_HEIGHT-B->ones_left; i++) {
-        int xi, yi;
-        get_pos(B, i, &xi, &yi, packed_array);
+    while (unpack_value(packed_array[B->next_idx - 1]) == 1) {
+        int xi = unpack_pos_x(packed_array[B->next_idx - 1]);
+        int yi = unpack_pos_y(packed_array[B->next_idx - 1]);
         *one_positions |= (1 << AR_IDX(xi - x, yi - y));
+        B->ones_down -= 1;
+        B->next_idx -= 1;
     }
-    B->ones_left += otr;
-    B->last_num -= 1;
 }
 
 // get the lowest index of neighboring cells of the given position
-__device__ int dvc_get_anchor(BoardDevice* B, int x, int y, uint32_t* packed_array) {
+__device__ int dvc_get_anchor(BoardDevice* B, uint32_t* packed_array, int x, int y) {
 
     int pos_x, pos_y;
-    for (int i=0; i<B->last_num; i++) {
-        get_pos(B, i, &pos_x, &pos_y, packed_array);
-        if ((pos_x == x) && (pos_y == y)) {
-            continue;
-        }
-        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
-            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
-                return i;
-            }
-        }
-    }
-    for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) {
-        get_pos(B, i, &pos_x, &pos_y, packed_array);
-        if ((pos_x == x) && (pos_y == y)) {
-            continue;
-        }
-        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
-            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
-                return i;
-            }
+    for (int i=0; i<B->next_idx; i++) {
+        get_pos(B, packed_array, i, &pos_x, &pos_y);
+        if ((x-1 <= pos_x) && (pos_x <= x+1) && 
+            (y-1 <= pos_y) && (pos_y <= y+1)) {
+            return i;
         }
     }
     return MAX_HEIGHT;
 }
 
-// get the sum of elements surrounding position
-// returns INT_MAX if position already populated
-__device__ int dvc_get_sum(BoardDevice* B, int x, int y, int target, int* least_neighbor, int* open_neighbors, uint32_t* packed_array) {
+// get the lowest index of neighboring cells of the given position
+__device__ bool dvc_clear_for_one(BoardDevice* B, uint32_t* packed_array, int x, int y) {
 
-    int sum = 0;
-    int pos_x, pos_y;
-    *least_neighbor = MAX_HEIGHT;
-    *open_neighbors = 255;
-    for (int i=0; i<B->last_num; i++) {
-        get_pos(B, i, &pos_x, &pos_y, packed_array);
-        if ((pos_x == x) && (pos_y == y)) {
-            return INT_MAX;
-        }
-        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
-            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
-                sum += i+2;
-                *least_neighbor = MIN(*least_neighbor, i);
-                *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
-                if (sum > target) return INT_MAX;
-            }
+    uint32_t packed_int;
+    int pos_x, pos_y, value;
+    for (int i=0; i<B->next_idx; i++) {
+        packed_int = packed_array[i];
+        pos_x = unpack_pos_x(packed_int);
+        pos_y = unpack_pos_y(packed_int);
+        value = unpack_value(packed_int);
+        if ((x-1 <= pos_x) && (pos_x <= x+1) && 
+            (y-1 <= pos_y) && (pos_y <= y+1) &&
+            (value > 1)) {
+            return false;
         }
     }
-    for (int i=MAX_HEIGHT-B->ones_num; i<MAX_HEIGHT-B->ones_left; i++) {
-        get_pos(B, i, &pos_x, &pos_y, packed_array);
+    return true;
+}
+
+// get the sum of elements surrounding position
+// returns INT_MAX if position already populated
+__device__ int dvc_get_sum(BoardDevice* B, uint32_t* packed_array, int x, int y, int target, int* anchor, int* open_neighbors) {
+
+    int pos_x, pos_y;
+    *anchor = MAX_HEIGHT;
+    *open_neighbors = 255;
+    int sum = 0;
+    for (int i=0; i<B->next_idx; i++) {
+        get_pos(B, packed_array, i, &pos_x, &pos_y);
         if ((pos_x == x) && (pos_y == y)) {
             return INT_MAX;
         }
-        if ((x-1 <= pos_x) && (pos_x <= x+1)) {
-            if ((y-1 <= pos_y) && (pos_y <= y+1)) {
-                sum += 1;
-                *least_neighbor = MIN(*least_neighbor, i);
-                *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
-                if (sum > target) return INT_MAX;
-            }
+        if ((x-1 <= pos_x) && (pos_x <= x+1) && (y-1 <= pos_y) && (pos_y <= y+1)) {
+            sum += unpack_value(packed_array[i]);
+            *anchor = MIN(*anchor, i);
+            *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
+            if (sum > target) return INT_MAX;
         }
     }
     return sum;
 }
 
-__device__ bool dvc_look_around(BoardDevice* B, int index, int start_H, int start_P, uint32_t* packed_array) {
+__device__ bool dvc_look_around(BoardDevice* B, uint32_t* packed_array, int index, int start_H, int start_P) {
 
     // check around the location of a particular index for a spot to place the next element
-    int new_x, new_y;
     int cur_sum, min_nb, open_nb, ones_needed;
-    int pos_x, pos_y;
+    int pos_x, pos_y, new_x, new_y;
+    int target = B->next_idx - B->ones_down + 2;
     bool vop;  // valid one positions
-    get_pos(B, index, &pos_x, &pos_y, packed_array);
+    get_pos(B, packed_array, index, &pos_x, &pos_y);
     for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = pos_x + x_around[H];
         new_y = pos_y + y_around[H];
-        cur_sum = dvc_get_sum(B, new_x, new_y, B->last_num + 2, &min_nb, &open_nb, packed_array);
+        cur_sum = dvc_get_sum(B, packed_array, new_x, new_y, target, &min_nb, &open_nb);
         if (min_nb == index) {  // don't go in spots we've already checked
-            if (cur_sum <= B->last_num + 2) {
-                ones_needed = B->last_num + 2 - cur_sum;
-                if (ones_needed <= MIN(B->ones_left, P_wieght[P_idxs[open_nb]])) {
+            if (cur_sum <= target) {
+                ones_needed = target - cur_sum;
+                if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
                     for (int P=MAX(start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
                         if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
                         // validate that the one positions aren't adjacent to other numbers
                         vop = true;
                         for (int b=0; b<8; b++) {
                             if ((P_bits[P] & (1<<b)) &&
-                                (dvc_get_anchor(B, new_x+x_around[b], new_y+y_around[b], packed_array) < B->last_num)) {
+                                (!dvc_clear_for_one(B, packed_array, new_x+x_around[b], new_y+y_around[b]))) {
                                 vop = false;
                                 break;
                             }
                         }
                         if (!vop) continue;
-                        dvc_insert_element(B, new_x, new_y, ones_needed, packed_array);
                         for (int b=0; b<8; b++) {
-                            if (P_bits[P] & (1<<b)) dvc_insert_one(B, new_x+x_around[b], new_y+y_around[b], packed_array);
+                            if (P_bits[P] & (1<<b)) dvc_insert_one(B, packed_array, new_x+x_around[b], new_y+y_around[b]);
                         }
+                        dvc_insert_element(B, packed_array, target, new_x, new_y);
                         return true;
                     }
                 }
@@ -217,11 +194,12 @@ __device__ void dvc_next_board_state(BoardDevice* B, uint32_t* packed_array) {
     // this function assumes that "2" has already been placed
 
     // first try to add the next number
-    for (int i=0; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
-        if (dvc_look_around(B, i, 0, 0, packed_array)) return;
-    }
-    for (int i=B->last_num - B->ones_num; i<B->last_num; i++) {  // we need to also look around high numbers
-        if (dvc_look_around(B, i, 0, 0, packed_array)) return;
+    for (int i=0; i<B->next_idx; i++) {
+        // if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(packed_array[i])) &&
+        //     (unpack_value(packed_array[i]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+        //     continue;
+        // }
+        if (dvc_look_around(B, packed_array, i, 0, 0)) return;
     }
 
     // failing to add a number, we'll attempt to move the current highest to a new position
@@ -229,28 +207,24 @@ __device__ void dvc_next_board_state(BoardDevice* B, uint32_t* packed_array) {
     int old_x, old_y;
     int nb_x, nb_y;
     int old_nb, last_H, last_P;
-    while (B->last_num - 1) {  // abort if "3" is removed
+    while (B->next_idx > 3) {  // abort if "3" is removed
         // first find where we left off
-        get_pos(B, B->last_num - 1, &old_x, &old_y, packed_array);
-        old_nb = dvc_get_anchor(B, old_x, old_y, packed_array);
-        get_pos(B, old_nb, &nb_x, &nb_y, packed_array);
+        get_pos(B, packed_array, B->next_idx - 1, &old_x, &old_y);
+        old_nb = dvc_get_anchor(B, packed_array, old_x, old_y);
+        get_pos(B, packed_array, old_nb, &nb_x, &nb_y);
         last_H = AR_IDX(old_x - nb_x, old_y - nb_y);
         // remove the element and search for new spot
-        dvc_remove_element(B, &last_P, packed_array);
+        dvc_remove_element(B, packed_array, &last_P);
+
         // start with element it was already around
-        if (dvc_look_around(B, old_nb, last_H, P_idxs[last_P] + 1, packed_array)) return;
-        for (int i=old_nb+1; i<B->last_num / 2; i++) {  // choose a num (i+2) to try to place around
-            if (dvc_look_around(B, i, 0, 0, packed_array)) return;
+        if (dvc_look_around(B, packed_array, old_nb, last_H, P_idxs[last_P] + 1)) return;
+        for (int i=old_nb+1; i<B->next_idx; i++) {
+            // if (((B->next_idx - B->ones_down + 2) / 2 < unpack_value(packed_array[i])) &&
+            //     (unpack_value(packed_array[i]) < (B->next_idx - B->ones_down + 2) - B->ones_num)) {
+            //     continue;
+            // }
+            if (dvc_look_around(B, packed_array, i, 0, 0)) return;
         }
-        for (int i=MAX(old_nb+1, B->last_num - B->ones_num); i<B->last_num; i++) {  // we need to also look around high numbers
-            if (dvc_look_around(B, i, 0, 0, packed_array)) return;
-        }
-        // we can forgo looking around ones so long as our initial boards already have min(N,8) placed
-        // if (B->last_num+2 <= 8) { // we need to also look around ones for small numbers
-        //     for (int i=MAX(old_nb+1, MAX_HEIGHT - B->ones_num); i<MAX_HEIGHT-B->ones_left; i++) { 
-        //         if (dvc_look_around(B, i, 0, 0)) return;
-        //     }
-        // }
     }
 }
 
@@ -261,34 +235,20 @@ __global__ void SearchKernel(uint32_t* b_arr, int* cur_max, int num_b) {
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {
 
-        uint32_t packed_array[MAX_HEIGHT];
-        int ones_num, ones_left, last_num;
-
-        ones_num = get_elem(b_arr, b_idx, num_b, 0);
-        ones_left = get_elem(b_arr, b_idx, num_b, 1);
-        last_num = get_elem(b_arr, b_idx, num_b, 2);
-        
-        #pragma unroll
-        for (int i = 0; i < MAX_HEIGHT; i++) {
-            packed_array[i] = get_elem(b_arr, b_idx, num_b, 3 + i);
-        }
-
         BoardDevice B;
-        B.ones_num = ones_num;
-        B.ones_left = ones_left;
-        B.last_num = last_num;
-
-        int anchor = B.last_num - 1;
-        int anchor_x, anchor_y;
-        get_pos(&B, anchor, &anchor_x, &anchor_y, packed_array);
+        uint32_t packed_array[MAX_HEIGHT];
+        get_board_from_flat(&B, packed_array, b_arr, b_idx, num_b);
+        int anchor_idx = B.next_idx - 1;
+        int anchor_x, anchor_y, test_x, test_y;
+        get_pos(&B, packed_array, anchor_idx, &anchor_x, &anchor_y);
         while (true) {
             dvc_next_board_state(&B, packed_array);
-            if (*cur_max < B.last_num) {
-                atomicMax(cur_max, B.last_num);
+            if (*cur_max < B.next_idx) {
+                atomicMax(cur_max, B.next_idx);
                 set_board_in_flat(b_arr, b_idx, num_b, &B, packed_array);
             }
-            int test_x, test_y;
-            get_pos(&B, anchor, &test_x, &test_y, packed_array);
+            if (anchor_idx > B.next_idx - 1) break;
+            get_pos(&B, packed_array, anchor_idx, &test_x, &test_y);
             if ((anchor_x != test_x) || (anchor_y != test_y)) {
                 break;
             }
@@ -308,7 +268,7 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     cudaMalloc((void**) &cur_max, sizeof(int));
 	cudaMemset(cur_max, 0, sizeof(int));
     uint32_t* Boards_device;
-    cudaMalloc((void**) &Boards_device, num_b * (MAX_HEIGHT + 3) * sizeof(uint32_t));
+    cudaMalloc((void**) &Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
     cudaMemcpy(Boards_device, Boards_host, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
     // Setup the execution configuration
@@ -323,11 +283,12 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
     // copy results back to host
     int* host_cur_max = (int*) malloc(sizeof(int));
     cudaMemcpy(host_cur_max, cur_max, sizeof(int), cudaMemcpyDeviceToHost);
-    // printf("device max last pos: %d\n", *host_cur_max);
+    // printf("device max last idx: %d\n", *host_cur_max);
     cudaMemcpy(Boards_host, Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     unflatten_board_list(Boards, Boards_host, num_b);
     for (int b=0; b<num_b; b++) {
-        if (Boards[b].last_num == *host_cur_max) {
+        if (Boards[b].next_idx == *host_cur_max) {
+            // pretty_print(&Boards[b]);
             CopyHostBoard(max_board, &Boards[b]);
         }
     }

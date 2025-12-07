@@ -100,7 +100,6 @@ Board computeTermGPU(int N) {
     // start with all possible ways to place the first 2
     for (int i=0; i<num_b; i++) {
         InitBoard(&search_boards[i], N);
-        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
     }
     insert_one(&search_boards[0], C_OFF-1, C_OFF-1);
     insert_one(&search_boards[0], C_OFF+1, C_OFF+1);
@@ -114,6 +113,9 @@ Board computeTermGPU(int N) {
     insert_one(&search_boards[4], C_OFF+1, C_OFF);
     insert_one(&search_boards[5], C_OFF+1, C_OFF+1);
     insert_one(&search_boards[5], C_OFF+1, C_OFF);
+    for (int i=0; i<num_b; i++) {
+        insert_element(&search_boards[i], 2, C_OFF, C_OFF);
+    }
 
     // do a breadth first search of boards until we have sufficiently many
     const int depth_chart[8] = {1, 6, 9, 9, 5, 6, 7, 8};
