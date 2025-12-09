@@ -373,7 +373,7 @@ bool split_board(Board* B, int* start_P) {
     for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
         for (int b=0; b<8; b++) {
             if (P_bits[P] & (1<<b)) 
-                insert_one(B, C_OFF+x_around[b], C_OFF+y_around[b], 1);
+                insert_one(B, C_OFF + x_around[b], C_OFF + y_around[b], 1);
         }
         insert_element(B, ones_needed, C_OFF, C_OFF, 1);
         *start_P = P;
@@ -405,19 +405,18 @@ void reorient_mub(Board* B, int mub, int t) {
 
 // bring multiboard back down to one board while aligning the given coordinates
 bool overlay_mub(Board* B, int x_off, int y_off) {
-    uint32_t packed_int0, packed_int1;
-    int xi, yi, xj, yj;
+
     // confirm no new adjacencies will be born
     for (int i=0; i<B->next_idx; i++) {
-        packed_int0 = B->packed_array[i];
+        uint32_t packed_int0 = B->packed_array[i];
         if (unpack_mub(packed_int0) != 1) continue;
-        xi = unpack_pos_x(packed_int0) + x_off;
-        yi = unpack_pos_y(packed_int0) + y_off;
+        int xi = unpack_pos_x(packed_int0) + x_off;
+        int yi = unpack_pos_y(packed_int0) + y_off;
         for (int j=0; j<B->next_idx; j++) {
-            packed_int1 = B->packed_array[j];
+            uint32_t packed_int1 = B->packed_array[j];
             if (unpack_mub(packed_int1) != 0) continue;
-            xj = unpack_pos_x(packed_int1);
-            yj = unpack_pos_y(packed_int1);
+            int xj = unpack_pos_x(packed_int1);
+            int yj = unpack_pos_y(packed_int1);
             if ((unpack_value(packed_int0) == 1) && (unpack_value(packed_int1) == 1))
                 continue;
             if ((-1 <= xi - xj) && (xi - xj <= 1) && (-1 <= yi - yj) && (yi - yj <= 1))
@@ -426,11 +425,11 @@ bool overlay_mub(Board* B, int x_off, int y_off) {
     }
     // all clear to drop it down
     for (int i=0; i<B->next_idx; i++) {
-        packed_int0 = B->packed_array[i];
-        if (unpack_mub(packed_int0) != 1) continue;
-        xi = unpack_pos_x(packed_int0) + x_off;
-        yi = unpack_pos_y(packed_int0) + y_off;
-        B->packed_array[i] = pack(xi, yi, unpack_value(packed_int0), 0);
+        uint32_t packed_int = B->packed_array[i];
+        if (unpack_mub(packed_int) != 1) continue;
+        int xi = unpack_pos_x(packed_int) + x_off;
+        int yi = unpack_pos_y(packed_int) + y_off;
+        B->packed_array[i] = pack(xi, yi, unpack_value(packed_int), 0);
     }
     return true;
 }
@@ -461,8 +460,8 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                 new_xi = xi + x_around[H0];
                 new_yi = yi + y_around[H0];
                 cur_sum0 = get_sum(B, 0, new_xi, new_yi, target, &min_nb0, &open_nb0);
-                if (min_nb0 != i) continue;  // don't go in spots with a lower anchor
                 if (cur_sum0 > target) continue;
+                if (min_nb0 != i) continue;  // don't go in spots with a lower anchor
                 // find our spot in mub 1
                 for (int j=*anc_1; j<B->next_idx; j++) {  // anchor index for mub 1
                     *anc_1 = 0;
@@ -475,13 +474,13 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                         new_xj = xj + x_around[H1];
                         new_yj = yj + y_around[H1];
                         cur_sum1 = get_sum(B, 1, new_xj, new_yj, target-cur_sum0, &min_nb1, &open_nb1);
-                        if (min_nb1 != j) continue;  // don't go in spots with a lower anchor
                         if (cur_sum1 > target-cur_sum0) continue;
+                        if (min_nb1 != j) continue;  // don't go in spots with a lower anchor
                         // if we get this far, the sums work out
                         ones_needed = target - cur_sum0 - cur_sum1;
                         open_nb = open_nb0 & open_nb1;
-                        if (ones_needed > MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]]))
-                            continue;
+                        if (ones_needed > B->ones_num - B->ones_down) continue;
+                        if (ones_needed > P_wieght[P_idxs[open_nb]]) continue;
                         // if we get this far, the ones work out
                         if (!overlay_mub(B, new_xi - new_xj, new_yi - new_yj)) continue;
                         // with the boards overlayed, the rest is the same as in look_around
