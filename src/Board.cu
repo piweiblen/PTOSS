@@ -428,7 +428,9 @@ bool overlay_mub(Board* B, int x_off, int y_off) {
     for (int i=0; i<B->next_idx; i++) {
         packed_int0 = B->packed_array[i];
         if (unpack_mub(packed_int0) != 1) continue;
-        B->packed_array[i] = pack_mub(packed_int0, 0);
+        xi = unpack_pos_x(packed_int0) + x_off;
+        yi = unpack_pos_y(packed_int0) + y_off;
+        B->packed_array[i] = pack(xi, yi, unpack_value(packed_int0), 0);
     }
     return true;
 }
