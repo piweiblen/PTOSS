@@ -467,6 +467,7 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                     *anc_1 = 0;
                     packed_int1 = B->packed_array[j];
                     if (unpack_mub(packed_int1) != 1) continue;
+                    if (unpack_value(packed_int1) + cur_sum0 > target) continue;
                     xj = unpack_pos_x(packed_int1);
                     yj = unpack_pos_y(packed_int1);
                     for (int H1=*start_H1; H1<8; H1++) {
