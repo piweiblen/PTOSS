@@ -125,10 +125,9 @@ __device__ bool dvc_clear_for_one(BoardDevice* B, uint32_t* packed_array, int k_
 
 // get the sum of elements surrounding position
 // returns INT_MAX if position already populated
-__device__ int dvc_get_sum(BoardDevice* B, uint32_t* packed_array, int k_idx, int x, int y, int target, int* anchor, int* open_neighbors) {
+__device__ int dvc_get_sum(BoardDevice* B, uint32_t* packed_array, int k_idx, int x, int y, int target, int anchor, int* open_neighbors) {
 
     int pos_x, pos_y;
-    *anchor = MAX_HEIGHT;
     *open_neighbors = 255;
     int sum = 0;
     for (int i=0; i<B->next_idx; i++) {
@@ -137,10 +136,10 @@ __device__ int dvc_get_sum(BoardDevice* B, uint32_t* packed_array, int k_idx, in
             return INT_MAX;
         }
         if ((x-1 <= pos_x) && (pos_x <= x+1) && (y-1 <= pos_y) && (pos_y <= y+1)) {
+            if (i < anchor) return INT_MAX;  // don't go in spots we've already checked
             sum += unpack_value(packed_array[i*BLOCK_SIZE + k_idx]);
-            *anchor = MIN(*anchor, i);
-            *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
             if (sum > target) return INT_MAX;
+            *open_neighbors ^= (1 << AR_IDX(pos_x - x, pos_y - y));
         }
     }
     return sum;
@@ -149,7 +148,7 @@ __device__ int dvc_get_sum(BoardDevice* B, uint32_t* packed_array, int k_idx, in
 __device__ bool dvc_look_around(BoardDevice* B, uint32_t* packed_array, int k_idx, int index, int start_H, int start_P) {
 
     // check around the location of a particular index for a spot to place the next element
-    int cur_sum, min_nb, open_nb, ones_needed;
+    int cur_sum, open_nb, ones_needed;
     int pos_x, pos_y, new_x, new_y;
     int target = B->next_idx - B->ones_down + 2;
     bool vop;  // valid one positions
@@ -157,29 +156,27 @@ __device__ bool dvc_look_around(BoardDevice* B, uint32_t* packed_array, int k_id
     for (int H=start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = pos_x + x_around[H];
         new_y = pos_y + y_around[H];
-        cur_sum = dvc_get_sum(B, packed_array, k_idx, new_x, new_y, target, &min_nb, &open_nb);
-        if (min_nb == index) {  // don't go in spots we've already checked
-            if (cur_sum <= target) {
-                ones_needed = target - cur_sum;
-                if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
-                    for (int P=MAX(start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
-                        if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
-                        // validate that the one positions aren't adjacent to other numbers
-                        vop = true;
-                        for (int b=0; b<8; b++) {
-                            if ((P_bits[P] & (1<<b)) &&
-                                (!dvc_clear_for_one(B, packed_array, k_idx, new_x+x_around[b], new_y+y_around[b]))) {
-                                vop = false;
-                                break;
-                            }
+        cur_sum = dvc_get_sum(B, packed_array, k_idx, new_x, new_y, target, index, &open_nb);
+        if (cur_sum <= target) {
+            ones_needed = target - cur_sum;
+            if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
+                for (int P=MAX(start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
+                    if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
+                    // validate that the one positions aren't adjacent to other numbers
+                    vop = true;
+                    for (int b=0; b<8; b++) {
+                        if ((P_bits[P] & (1<<b)) &&
+                            (!dvc_clear_for_one(B, packed_array, k_idx, new_x+x_around[b], new_y+y_around[b]))) {
+                            vop = false;
+                            break;
                         }
-                        if (!vop) continue;
-                        for (int b=0; b<8; b++) {
-                            if (P_bits[P] & (1<<b)) dvc_insert_one(B, packed_array, k_idx, new_x+x_around[b], new_y+y_around[b]);
-                        }
-                        dvc_insert_element(B, packed_array, k_idx, target, new_x, new_y);
-                        return true;
                     }
+                    if (!vop) continue;
+                    for (int b=0; b<8; b++) {
+                        if (P_bits[P] & (1<<b)) dvc_insert_one(B, packed_array, k_idx, new_x+x_around[b], new_y+y_around[b]);
+                    }
+                    dvc_insert_element(B, packed_array, k_idx, target, new_x, new_y);
+                    return true;
                 }
             }
         }

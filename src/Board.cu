@@ -238,16 +238,14 @@ int get_anchor(Board* B, int mub, int x, int y) {
 
 // get the sum of elements surrounding position
 // returns INT_MAX if position already populated
-int get_sum(Board* B, int mub, int x, int y, int target, int* anchor, int* open_neighbors) {
+int get_sum(Board* B, int mub, int x, int y, int target, int anchor, int* open_neighbors) {
 
-    uint32_t packed_int;
     int xi, yi, xii, yii;
-    *anchor = MAX_HEIGHT;
     *open_neighbors = 255;
     int sum = 0;
     for (int i=0; i<B->next_idx; i++) {
-        // Unpack xi and yi
-        packed_int = B->packed_array[i];
+        int idx = (i + anchor + B->next_idx - 3) % B->next_idx;
+        uint32_t packed_int = B->packed_array[idx];
         if (unpack_mub(packed_int) != mub) continue;
         xi = unpack_pos_x(packed_int);
         yi = unpack_pos_y(packed_int);
@@ -255,8 +253,8 @@ int get_sum(Board* B, int mub, int x, int y, int target, int* anchor, int* open_
             return INT_MAX;
         }
         if ((x-1 <= xi) && (xi <= x+1) && (y-1 <= yi) && (yi <= y+1)) {
+            if (idx < anchor) return INT_MAX;  // don't go in spots with a lower anchor
             sum += unpack_value(packed_int);
-            *anchor = MIN(*anchor, i);
             *open_neighbors &= ~(1 << AR_IDX(xi - x, yi - y));
             if (sum > target) return INT_MAX;
         }
@@ -285,26 +283,24 @@ bool look_around(Board* B, int index, int* start_H, int* start_P) {
     int mub = unpack_mub(packed_int);
     int next_num = B->next_idx - B->ones_down + 2;
     int new_x, new_y;
-    int cur_sum, min_nb, open_nb, ones_needed;
+    int cur_sum, open_nb, ones_needed;
     for (int H=*start_H; H<8; H++) {  // iterate over all spots around (i+2)
         new_x = xi + x_around[H];
         new_y = yi + y_around[H];
-        cur_sum = get_sum(B, mub, new_x, new_y, next_num, &min_nb, &open_nb);
-        if (min_nb == index) {  // don't go in spots with a lower anchor
-            if (cur_sum <= next_num) {
-                ones_needed = next_num - cur_sum;
-                if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
-                    for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
-                        if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
-                        for (int b=0; b<8; b++) {
-                            if (P_bits[P] & (1<<b))
-                                insert_one(B, new_x+x_around[b], new_y+y_around[b], mub);
-                        }
-                        insert_element(B, next_num, new_x, new_y, mub);
-                        *start_H = H;
-                        *start_P = P;
-                        return true;
+        cur_sum = get_sum(B, mub, new_x, new_y, next_num, index, &open_nb);
+        if (cur_sum <= next_num) {
+            ones_needed = next_num - cur_sum;
+            if (ones_needed <= MIN(B->ones_num - B->ones_down, P_wieght[P_idxs[open_nb]])) {
+                for (int P=MAX(*start_P, P_rngs[ones_needed]); P<P_rngs[ones_needed+1]; P++) {
+                    if ((P_bits[P] & open_nb) != P_bits[P]) continue;  // one positions must be open
+                    for (int b=0; b<8; b++) {
+                        if (P_bits[P] & (1<<b))
+                            insert_one(B, new_x+x_around[b], new_y+y_around[b], mub);
                     }
+                    insert_element(B, next_num, new_x, new_y, mub);
+                    *start_H = H;
+                    *start_P = P;
+                    return true;
                 }
             }
         }
@@ -442,7 +438,7 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
     uint32_t packed_int0, packed_int1;
     int xi, yi, xj, yj;
     int new_xi, new_yi, new_xj, new_yj;
-    int cur_sum0, min_nb0, cur_sum1, min_nb1;
+    int cur_sum0, cur_sum1;
     int open_nb, open_nb0, open_nb1;
     int ones_needed;
     for (int t=*start_tr; t<8; t++) {  // set the orientation of the second board
@@ -459,9 +455,8 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                 *start_H0 = 0;
                 new_xi = xi + x_around[H0];
                 new_yi = yi + y_around[H0];
-                cur_sum0 = get_sum(B, 0, new_xi, new_yi, target, &min_nb0, &open_nb0);
+                cur_sum0 = get_sum(B, 0, new_xi, new_yi, target, i, &open_nb0);
                 if (cur_sum0 > target) continue;
-                if (min_nb0 != i) continue;  // don't go in spots with a lower anchor
                 // find our spot in mub 1
                 for (int j=*anc_1; j<B->next_idx; j++) {  // anchor index for mub 1
                     *anc_1 = 0;
@@ -474,9 +469,8 @@ bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H
                         *start_H1 = 0;
                         new_xj = xj + x_around[H1];
                         new_yj = yj + y_around[H1];
-                        cur_sum1 = get_sum(B, 1, new_xj, new_yj, target-cur_sum0, &min_nb1, &open_nb1);
+                        cur_sum1 = get_sum(B, 1, new_xj, new_yj, target-cur_sum0, j, &open_nb1);
                         if (cur_sum1 > target-cur_sum0) continue;
-                        if (min_nb1 != j) continue;  // don't go in spots with a lower anchor
                         // if we get this far, the sums work out
                         ones_needed = target - cur_sum0 - cur_sum1;
                         open_nb = open_nb0 & open_nb1;
