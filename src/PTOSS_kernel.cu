@@ -201,8 +201,6 @@ __device__ bool dvc_next_board_state(BoardDevice* B, uint32_t* packed_array, int
 // Main kernel for parallel board search
 __global__ void SearchKernel(uint32_t* b_arr, int* cur_max, int num_b) {
     
-    // __shared__ uint32_t packed_array[MAX_HEIGHT*BLOCK_SIZE];
-    // asm volatile (".pragma \"enable_smem_spilling\";");
     // assign each thread one board to completely search the state space of
     int b_idx = blockDim.x * blockIdx.x + threadIdx.x;
     if (b_idx < num_b) {

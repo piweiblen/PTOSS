@@ -215,27 +215,6 @@ void remove_element(Board* B, int* one_positions) {
     }
 }
 
-// // get the lowest index of neighboring cells of the given position
-// int get_anchor(Board* B, int mub, int x, int y) {
-
-//     int pos_x, pos_y;
-//     for (int i=0; i<B->next_idx; i++) {
-//         uint32_t packed_int = B->packed_array[i];
-//         if (unpack_mub(packed_int) != mub) continue;
-//         pos_x = unpack_pos_x(packed_int);
-//         pos_y = unpack_pos_y(packed_int);
-//         if ((pos_x == x) && (pos_y == y)) {
-//             continue;
-//         }
-//         if ((x-1 <= pos_x) && (pos_x <= x+1)) {
-//             if ((y-1 <= pos_y) && (pos_y <= y+1)) {
-//                 return i;
-//             }
-//         }
-//     }
-//     return MAX_HEIGHT;
-// }
-
 // get the sum of elements surrounding position
 // returns INT_MAX if position already populated
 int get_sum(Board* B, int mub, int x, int y, int target, int anchor, int* open_neighbors) {
@@ -339,7 +318,6 @@ void next_board_state(Board* B) {
         uint32_t packed_int = B->packed_array[B->next_idx - 1];
         old_x = unpack_pos_x(packed_int);
         old_y = unpack_pos_y(packed_int);
-        // old_nb = get_anchor(B, 0, old_x, old_y);
         old_nb = unpack_anchor(packed_int);
         uint32_t old_nb_packed = B->packed_array[old_nb];
         last_H = AR_IDX(old_x - unpack_pos_x(old_nb_packed), old_y - unpack_pos_y(old_nb_packed));
