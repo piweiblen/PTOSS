@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define MAX_HEIGHT 90
-#define C_OFF (1<<11)
+#define C_OFF (1<<7)
 
 // Board Structure declaration
 typedef struct {
@@ -26,24 +26,25 @@ void next_board_state(Board* B);
 void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int depth);
 
 // Pack a pos_x, pos_y, vlue and mub into a single uint32_t
-__host__ __device__ inline uint32_t pack(int pos_x, int pos_y, int value, int mub) {
-    return (((uint32_t) pos_x & 0xFFF) // Pack pos_x into bits 0-11
-            | (((uint32_t) pos_y & 0xFFF) << 12) // Pack pos_y into bits 12-23
+__host__ __device__ inline uint32_t pack(int pos_x, int pos_y, int anchor, int value, int mub) {
+    return (((uint32_t) pos_x & 0xFF) // Pack pos_x into bits 0-7
+            | (((uint32_t) pos_y & 0xFF) << 8) // Pack pos_y into bits 8-15
+            | (((uint32_t) anchor & 0xFF) << 16) // Pack anchor into bits 16-23
             | (((uint32_t) value & 0x7F) << 24) // Pack value into bits 24-30
             | (((uint32_t) mub & 0x1) << 31)); // Pack multiboard into bit 31
 }
 
 // Pack pos_x in packed int (without changing anything else)
 __host__ __device__ inline uint32_t pack_pos_x(uint32_t packed_int, int pos_x) {
-    packed_int &= ~0xFFF; // Clear old pos_x
-    packed_int |= (uint32_t) pos_x & 0xFFF; // Add new pos_x
+    packed_int &= ~0xFF; // Clear old pos_x
+    packed_int |= (uint32_t) pos_x & 0xFF; // Add new pos_x
     return packed_int;
 }
 
 // Pack pos_y in packed int (without changing anything else)
 __host__ __device__ inline uint32_t pack_pos_y(uint32_t packed_int, int pos_y) {
-    packed_int &= ~(0xFFF << 12); // Clear old pos_y
-    packed_int |= ((uint32_t) pos_y & 0xFFF) << 12; // Add new pos_y
+    packed_int &= ~(0xFF << 8); // Clear old pos_y
+    packed_int |= ((uint32_t) pos_y & 0xFF) << 8; // Add new pos_y
     return packed_int;
 }
 
@@ -51,6 +52,13 @@ __host__ __device__ inline uint32_t pack_pos_y(uint32_t packed_int, int pos_y) {
 __host__ __device__ inline uint32_t pack_pos(uint32_t packed_int, int pos_x, int pos_y) {
     packed_int = pack_pos_x(packed_int, pos_x);
     packed_int = pack_pos_y(packed_int, pos_y);
+    return packed_int;
+}
+
+// Pack pos_y in packed int (without changing anything else)
+__host__ __device__ inline uint32_t pack_anchor(uint32_t packed_int, int anchor) {
+    packed_int &= ~(0xFF << 16); // Clear old anchor
+    packed_int |= ((uint32_t) anchor & 0xFF) << 16; // Add new anchor
     return packed_int;
 }
 
@@ -70,12 +78,17 @@ __host__ __device__ inline uint32_t pack_mub(uint32_t packed_int, int mub) {
 
 // Unpack pos_x int
 __host__ __device__ inline int unpack_pos_x(uint32_t packed_int) {
-    return packed_int & 0xFFF;
+    return packed_int & 0xFF;
 }
 
 // Unpack pos_y int
 __host__ __device__ inline int unpack_pos_y(uint32_t packed_int) {
-    return (packed_int >> 12) & 0xFFF;
+    return (packed_int >> 8) & 0xFF;
+}
+
+// Unpack anchor int
+__host__ __device__ inline int unpack_anchor(uint32_t packed_int) {
+    return (packed_int >> 16) & 0xFF;
 }
 
 // Unpack value int
