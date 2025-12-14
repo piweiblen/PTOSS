@@ -56,7 +56,6 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
     Board* B;
     int dedup_idx, dedup_num;
     bool new_any_dedup = false;
-    Board** dedup_ptr = (Board **) malloc(sizeof(*dedup_ptr));
     int start_H, start_P;
 
     // start with boards -> boards
@@ -93,8 +92,7 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
         if (any_dedup) {
             // deduplicate generated boards
             dedup_num = cur_idx - dedup_idx;
-            *dedup_ptr = new_bds_bb + dedup_idx;
-            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            new_any_dedup |= remove_duplicates(new_bds_bb + dedup_idx, &dedup_num);
             cur_idx = dedup_idx + dedup_num;
         }
     }
@@ -133,8 +131,7 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
         if (any_dedup) {
             // deduplicate generated boards
             dedup_num = cur_idx - dedup_idx;
-            *dedup_ptr = new_bds_bm + dedup_idx;
-            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            new_any_dedup |= remove_duplicates(new_bds_bm + dedup_idx, &dedup_num);
             cur_idx = dedup_idx + dedup_num;
         }
     }
@@ -174,8 +171,7 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
         if (any_dedup) {
             // deduplicate generated boards
             dedup_num = cur_idx - dedup_idx;
-            *dedup_ptr = new_bds_mb + dedup_idx;
-            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            new_any_dedup |= remove_duplicates(new_bds_mb + dedup_idx, &dedup_num);
             cur_idx = dedup_idx + dedup_num;
         }
     }
@@ -215,8 +211,7 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
         if (any_dedup) {
             // deduplicate generated boards
             dedup_num = cur_idx - dedup_idx;
-            *dedup_ptr = new_bds_mm + dedup_idx;
-            new_any_dedup |= remove_duplicates(dedup_ptr, &dedup_num, false);
+            new_any_dedup |= remove_duplicates(new_bds_mm + dedup_idx, &dedup_num);
             cur_idx = dedup_idx + dedup_num;
         }
     }
@@ -225,15 +220,14 @@ void gen_all_next_boards(Board** boards, int* num_b, Board** multiboards, int* n
     // transfer generated boards to the output
     *any_dedup = new_any_dedup;
     *num_b = new_num_bb + new_num_mb;
-    *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
+    *boards = (Board *) realloc(*boards, MAX(1,*num_b) * sizeof(Board));
     *num_mub = new_num_bm + new_num_mm;
-    *multiboards = (Board *) realloc(*multiboards, (*num_mub) * sizeof(Board));
+    *multiboards = (Board *) realloc(*multiboards, MAX(1,*num_mub) * sizeof(Board));
     memcpy(*boards, new_bds_bb, new_num_bb * sizeof(Board));
     memcpy((*boards)+new_num_bb, new_bds_mb, new_num_mb * sizeof(Board));
     memcpy(*multiboards, new_bds_bm, new_num_bm * sizeof(Board));
     memcpy((*multiboards)+new_num_bm, new_bds_mm, new_num_mm * sizeof(Board));
     // clean up
-    free(dedup_ptr);
     free(new_bds_bb);
     free(new_bds_bm);
     free(new_bds_mb);
@@ -260,6 +254,10 @@ void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int dept
                    *num_b, num_mub, cur_depth);
         } else {
             printf("generated %d boards at depth %d...\n", *num_b, cur_depth);
+        }
+        if ((cur_depth == 4) && (N >= 5)) {
+            *num_b = 1;
+            printf("reducing to 1...\n");
         }
     }
 
@@ -288,8 +286,9 @@ void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int dept
 
 Board computeTermCPU(int N) {
 
-    clock_t tict = clock();
+    clock_t tic = clock();
     Board max_board;
+    int max_found = 0;
     InitBoard(&max_board, N);
     // hardcode result for n=1
     if (N == 1) {
@@ -297,46 +296,84 @@ Board computeTermCPU(int N) {
         return max_board;
     }
 
-    // do a breadth first search of boards to generate a pool of boards to search
-    // to ensure all boards are searched, depth should be at least N-2 for all N>4 
-    const int depth_chart[8] = {1, 4, 4, 4, 4, 4, 5, 6};
+    // do a breadth first search of boards to generate a pool of boards to
+    // then do another breadth first search on
+    const int depth_chart[8] = {1, 4, 4, 4, 4, 4, 4, 4};
+    // start with our hardcoded depth two
     int num_b;
     Board* search_boards;
-    gen_boards_to_depth(&search_boards, &num_b, N, depth_chart[N-1]);
-    printf("searching %d boards...\n", num_b);
-    // for (int i=0; i<num_b; i++) {
-    //     pretty_print(&search_boards[i]);
-    // }
-
-    // search all boards sequentially on the CPU
-    clock_t tic = clock();
-    Board* B;
-    int max_found = 0;
-    int count = 0;
-    uint32_t packed_int;
-    int anchor_idx, anchor_x, anchor_y;
-    for (int i=0; i<num_b; i++) {
-        B = search_boards + i;
-        anchor_idx = B->next_idx - 1;
-        packed_int = B->packed_array[anchor_idx];
-        anchor_x = unpack_pos_x(packed_int);
-        anchor_y = unpack_pos_y(packed_int);
-        while ((anchor_x == unpack_pos_x(B->packed_array[anchor_idx])) && (anchor_y == unpack_pos_y(B->packed_array[anchor_idx]))) {
-            next_board_state(B);
-            if (anchor_idx > B->next_idx - 1) break;
-            if (max_found < B->next_idx) {
-                max_found = B->next_idx;
-                CopyHostBoard(&max_board, B);
-            }
-            count += 1;
+    int cur_depth = 2;
+    gen_first_boards(&search_boards, &num_b, N);
+    int count = num_b;
+    bool any_dedup = true;
+    // generate up to the first depth
+    int num_mub = 0;
+    Board* search_mubs = (Board *) malloc(sizeof(Board));
+    while (cur_depth < depth_chart[N-1]) {
+        cur_depth++;
+        gen_all_next_boards(&search_boards, &num_b, &search_mubs, &num_mub, &any_dedup);
+        if (num_mub) {
+            printf("generated %d boards and %d multiboards at depth %d...\n",
+                   num_b, num_mub, cur_depth);
+        } else {
+            printf("generated %d boards at depth %d...\n", num_b, cur_depth);
         }
+        count += num_b + num_mub;
     }
-    clock_t toc = clock();
-    double split = (double)(toc - tic) / CLOCKS_PER_SEC;
-    printf("CPU checked %d unique states in %.3f seconds\n", count, split);
-    printf("total time: %f seconds\n", (double)(toc - tict) / CLOCKS_PER_SEC);
+    // begin second tier depth first search
+    int new_num_b;
+    Board* new_search_boards;
+    int new_num_mub;
+    Board* new_search_mubs = (Board *) malloc(sizeof(Board));
+    for (int i=0; i<num_b; i++) {
+        bool new_any_dedup = any_dedup;
+        new_num_b = 1;
+        new_num_mub = 0;
+        new_search_boards = (Board *) malloc(sizeof(Board));
+        CopyHostBoard(new_search_boards, search_boards + i);
+        while ((new_num_b > 0) || (new_num_mub > 0)) {
+            if (new_num_b > 0) {
+                Board* B = new_search_boards;
+                if (max_found < B->next_idx) {
+                    max_found = B->next_idx;
+                    CopyHostBoard(&max_board, B);
+                }
+            }
+            gen_all_next_boards(&new_search_boards, &new_num_b, &new_search_mubs, &new_num_mub, &new_any_dedup);
+            count += new_num_b + new_num_mub;
+        }
+        free(new_search_boards);
+    }
+    free(new_search_mubs);
+    new_search_boards = (Board *) malloc(sizeof(Board));
+    // and the same for the multiboards
+    for (int i=0; i<num_mub; i++) {
+        bool new_any_dedup = any_dedup;
+        new_num_b = 0;
+        new_num_mub = 1;
+        new_search_mubs = (Board *) malloc(sizeof(Board));
+        CopyHostBoard(new_search_mubs, search_mubs + i);
+        while ((new_num_b > 0) || (new_num_mub > 0)) {
+            if (new_num_b > 0) {
+                Board* B = new_search_boards;
+                if (max_found < B->next_idx) {
+                    max_found = B->next_idx;
+                    CopyHostBoard(&max_board, B);
+                }
+            }
+            gen_all_next_boards(&new_search_boards, &new_num_b, &new_search_mubs, &new_num_mub, &new_any_dedup);
+            count += new_num_b + new_num_mub;
+        }
+        free(new_search_mubs);
+    }
+    free(new_search_boards);
 
     free(search_boards);
+    free(search_mubs);
+
+    clock_t toc = clock();
+    printf("CPU checked %d unique states\n", count);
+    printf("total time: %f seconds\n", (double)(toc - tic) / CLOCKS_PER_SEC);
 
     return max_board;
 }
