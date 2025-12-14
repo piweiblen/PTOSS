@@ -220,7 +220,7 @@ __global__ void SearchKernel(uint32_t* b_arr, int* cur_max, int num_b) {
 // Kernel calling function specification
 void LaunchSearchKernel(Board* Boards, uint32_t** Boards_device, int** cur_max, int num_b) {
 
-    // do a bit of data marshalling
+    // do a bit of data marshaling
     uint32_t* Boards_host = (uint32_t*) malloc(num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
     flatten_board_list(Boards_host, Boards, num_b);
 
