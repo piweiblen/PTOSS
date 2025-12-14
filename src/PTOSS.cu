@@ -261,10 +261,6 @@ void gen_boards_to_depth(Board** boards, int* num_b, const int N, const int dept
         } else {
             printf("generated %d boards at depth %d...\n", *num_b, cur_depth);
         }
-        if ((cur_depth == 4) && (N >= 5)) {
-            *num_b = 1;
-            printf("reducing to 1...\n");
-        }
     }
 
     // then keep iterating on the multiboards until they are all merged or gone
