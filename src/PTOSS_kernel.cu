@@ -218,19 +218,17 @@ __global__ void SearchKernel(uint32_t* b_arr, int* cur_max, int num_b) {
 }
 
 // Kernel calling function specification
-void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
+void LaunchSearchKernel(Board* Boards, uint32_t** Boards_device, int** cur_max, int num_b) {
 
     // do a bit of data marshalling
     uint32_t* Boards_host = (uint32_t*) malloc(num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
     flatten_board_list(Boards_host, Boards, num_b);
 
     // set up device memory
-    int* cur_max;
-    cudaMalloc((void**) &cur_max, sizeof(int));
-	cudaMemset(cur_max, 0, sizeof(int));
-    uint32_t* Boards_device;
-    cudaMalloc((void**) &Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
-    cudaMemcpy(Boards_device, Boards_host, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    cudaMalloc((void**) cur_max, sizeof(int));
+	cudaMemset(*cur_max, 0, sizeof(int));
+    cudaMalloc((void**) Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
+    cudaMemcpy(*Boards_device, Boards_host, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
     // Setup the execution configuration
 	dim3 blockDim(BLOCK_SIZE, 1, 1);
@@ -238,24 +236,33 @@ void SearchOnDevice(Board* Boards, Board* max_board, int num_b) {
 
     // Launch the device computation threads
     printf("launching kernel...\n");
-	SearchKernel<<<gridDim,blockDim>>>(Boards_device, cur_max, num_b);
-	cudaDeviceSynchronize();
+	SearchKernel<<<gridDim,blockDim>>>(*Boards_device, *cur_max, num_b);
+
+    // free memory
+    free(Boards_host);
+}
+
+// Kernel calling function specification
+Board GetKernelResult(uint32_t** Boards_device, int** cur_max, int num_b) {
 
     // copy results back to host
+    Board max_board;
+    uint32_t* Boards_host = (uint32_t*) malloc(num_b * (MAX_HEIGHT+3) * sizeof(uint32_t));
+    Board* Boards = (Board *) malloc(num_b * sizeof(Board));
     int* host_cur_max = (int*) malloc(sizeof(int));
-    cudaMemcpy(host_cur_max, cur_max, sizeof(int), cudaMemcpyDeviceToHost);
-    // printf("device max last idx: %d\n", *host_cur_max);
-    cudaMemcpy(Boards_host, Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+    cudaMemcpy(host_cur_max, *cur_max, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(Boards_host, *Boards_device, num_b * (MAX_HEIGHT+3) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     unflatten_board_list(Boards, Boards_host, num_b);
     for (int b=0; b<num_b; b++) {
         if (Boards[b].next_idx == *host_cur_max) {
-            // pretty_print(&Boards[b]);
-            CopyHostBoard(max_board, &Boards[b]);
+            CopyHostBoard(&max_board, &Boards[b]);
         }
     }
 
     // free memory
     free(Boards_host);
-    cudaFree(cur_max);
-    cudaFree(Boards_device);
+    cudaFree(*Boards_device);
+    cudaFree(*cur_max);
+    return max_board;
 }
