@@ -27,7 +27,7 @@ bool look_around(Board* B, int index, int start_H, int start_P);
 void next_board_state(Board* B);
 bool split_board(Board* B, int* start_P);
 bool merge_board(Board* Bin, int* start_tr, int* anc_0, int* anc_1, int* start_H0, int* start_H1, int* start_P);
-bool remove_duplicates(Board** boards, int* num_b, bool realloc_arr);
+bool remove_duplicates(Board* boards, int* num_b);
 
 // Pack a pos_x, pos_y, vlue and mub into a single uint32_t
 __host__ __device__ inline uint32_t pack(int pos_x, int pos_y, int anchor, int value, int mub) {

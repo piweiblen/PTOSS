@@ -580,7 +580,7 @@ bool equivalent(Board* B1, Board* B2) {
 }
 
 // Give an array of boards, remove all boards which are duplicates
-bool remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
+bool remove_duplicates(Board* boards, int* num_b) {
     
     bool any = false;
     // Loop through all pairs of boards
@@ -588,11 +588,11 @@ bool remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
         for (int b2 = b1+1; b2 < *num_b; b2++) {
 
             // If the two boards are equivalent, remove the second board
-            if (equivalent(*boards + b1, *boards + b2)) {
+            if (equivalent(boards + b1, boards + b2)) {
                 any = true;
                 // Loop through all following boards and shift them left
                 for (int b = b2; b < *num_b-1; b++) {
-                    CopyHostBoard(*boards + b, *boards + b + 1);
+                    CopyHostBoard(boards + b, boards + b + 1);
                 }
 
                 // Lower the amount of boards
@@ -600,9 +600,6 @@ bool remove_duplicates(Board** boards, int* num_b, bool realloc_arr) {
                 b2--;
             }
         }
-    }
-    if (realloc_arr) {
-        *boards = (Board *) realloc(*boards, (*num_b) * sizeof(Board));
     }
     return any;
 }
