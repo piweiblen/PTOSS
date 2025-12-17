@@ -3,7 +3,7 @@ PTOSS is designed to efficiently compute terms in the sequence [A337663](https:/
 
 ## Build instructions
 
-Makefile included, designed to be built with Cuda compilation tools release 13.0.
+Makefile included, designed to be built with Cuda compilation tools release 13.0. To compile, simply run "make" in PTOSS/src. Object files can be removed with "make clean".
 
 ## Running
 
